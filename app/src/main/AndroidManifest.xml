@@ -12,6 +12,7 @@
         android:allowBackup="true"
         android:label="CloudPlay"
         android:icon="@drawable/cloudplay_icon"
+        android:banner="@drawable/cloudplay_banner"
         android:roundIcon="@drawable/cloudplay_icon"
         android:theme="@style/Theme.CloudPlay"
         android:usesCleartextTraffic="false">
