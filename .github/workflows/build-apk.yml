@@ -42,6 +42,13 @@ jobs:
 
       - name: Compilar APK de debug
         run: gradle --no-daemon :app:assembleDebug
+             
+              - name: Gerar Hash Microsoft
+        run: |
+          keytool -exportcert -alias androiddebugkey \
+            -keystore "$HOME/.android/debug.keystore" \
+            -storepass android -keypass android \
+            | openssl sha1 -binary | openssl base64
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
