@@ -11,8 +11,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -54,27 +52,12 @@ private val Muted = Color(0xFF9AA69C)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             CloudPlayApp()
         }
     }
 }
-
-private data class GameItem(
-    val name: String,
-    val category: String,
-    val start: Color,
-    val end: Color
-)
-
-private val games = listOf(
-    GameItem("FORTNITE", "Battle Royale", Color(0xFF352A70), Color(0xFF111B48)),
-    GameItem("FORZA", "Corrida", Color(0xFF176B50), Color(0xFF102A29)),
-    GameItem("GTA V", "Ação e aventura", Color(0xFF79502B), Color(0xFF282018)),
-    GameItem("MINECRAFT", "Sobrevivência", Color(0xFF47733C), Color(0xFF1C3520)),
-    GameItem("FIFA", "Esportes", Color(0xFF176B78), Color(0xFF102B3A)),
-    GameItem("ROBLOX", "Aventura", Color(0xFF733B3B), Color(0xFF321D25))
-)
 
 @Composable
 private fun CloudPlayApp() {
@@ -203,6 +186,7 @@ private fun Header(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Black
                 )
+
                 Text(
                     "JOGUE SEM LIMITES",
                     color = Green,
@@ -215,7 +199,9 @@ private fun Header(
         if (account != null) {
             TextButton(onClick = onProfile) {
                 ProfileAvatar(photo = photo, size = 34)
+
                 Spacer(Modifier.width(7.dp))
+
                 Text(
                     "PERFIL",
                     color = White,
@@ -249,7 +235,12 @@ private fun NavigationMenu(
     selected: String,
     onSelect: (String) -> Unit
 ) {
-    val options = listOf("Início", "Biblioteca", "Cloud Gaming", "Perfil")
+    val options = listOf(
+        "Início",
+        "Biblioteca",
+        "Cloud Gaming",
+        "Perfil"
+    )
 
     Row(
         modifier = Modifier
@@ -260,7 +251,9 @@ private fun NavigationMenu(
         verticalAlignment = Alignment.CenterVertically
     ) {
         options.forEach { option ->
-            TextButton(onClick = { onSelect(option) }) {
+            TextButton(
+                onClick = { onSelect(option) }
+            ) {
                 Text(
                     option.uppercase(),
                     color = if (selected == option) Green else Muted,
@@ -303,17 +296,9 @@ private fun MainContent(
                 onNavigate = onNavigate
             )
 
-            "Biblioteca" -> EmptyScreen(
-                title = "Sua biblioteca",
-                description = "Seus jogos aparecerão aqui quando houver uma conexão de biblioteca disponível.",
-                state = "A biblioteca ainda não está conectada."
-            )
+            "Biblioteca" -> LibraryScreen()
 
-            "Cloud Gaming" -> EmptyScreen(
-                title = "Cloud Gaming",
-                description = "Esta área será usada para acessar sessões de jogos na nuvem.",
-                state = "O serviço de streaming ainda não está conectado."
-            )
+            "Cloud Gaming" -> CloudGamingScreen()
 
             "Perfil" -> ProfileScreen(
                 account = account,
@@ -349,13 +334,11 @@ private fun HomeScreen(
             onLogin = onLogin
         )
 
-        GameSection(
-            title = "JOGOS EM DESTAQUE",
-            games = games,
-            isTv = isTv
-        )
+        XboxCatalogScreen()
 
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Text(
                 "EXPLORE O CLOUDPLAY",
                 color = White,
@@ -369,16 +352,20 @@ private fun HomeScreen(
             ) {
                 ActionCard(
                     title = "BIBLIOTECA",
-                    subtitle = "Seus jogos",
+                    subtitle = "Explorar jogos",
                     modifier = Modifier.weight(1f),
-                    onClick = { onNavigate("Biblioteca") }
+                    onClick = {
+                        onNavigate("Biblioteca")
+                    }
                 )
 
                 ActionCard(
                     title = "CLOUD GAMING",
-                    subtitle = "Jogar na nuvem",
+                    subtitle = "Área de streaming",
                     modifier = Modifier.weight(1f),
-                    onClick = { onNavigate("Cloud Gaming") }
+                    onClick = {
+                        onNavigate("Cloud Gaming")
+                    }
                 )
             }
         }
@@ -452,9 +439,11 @@ private fun HeroBanner(
                     Icons.Filled.PlayArrow,
                     contentDescription = null
                 )
+
                 Spacer(Modifier.width(5.dp))
+
                 Text(
-                    "COMEÇAR",
+                    "ENTRAR COM MICROSOFT",
                     fontWeight = FontWeight.Black
                 )
             }
@@ -470,107 +459,83 @@ private fun HeroBanner(
 }
 
 @Composable
-private fun GameSection(
-    title: String,
-    games: List<GameItem>,
-    isTv: Boolean
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .width(4.dp)
-                        .height(25.dp)
-                        .background(Green, RoundedCornerShape(5.dp))
-                )
-
-                Spacer(Modifier.width(10.dp))
-
-                Text(
-                    title,
-                    color = White,
-                    fontSize = if (isTv) 22.sp else 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Text(
-                "DESTAQUES",
-                color = Green,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(games) { game ->
-                GameCard(game, isTv)
-            }
-        }
+private fun LibraryScreen() {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Text(
+            "SUA BIBLIOTECA",
+            color = Green,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Black
+        )
 
         Text(
-            "Vitrine demonstrativa • jogos ainda não conectados",
-            color = Color(0xFF657168),
-            fontSize = 9.sp
+            "Explore os jogos",
+            color = White,
+            fontSize = 27.sp,
+            fontWeight = FontWeight.Black
         )
+
+        Text(
+            "Jogos encontrados no catálogo online. Isso ainda não representa os jogos vinculados à sua conta Xbox.",
+            color = Muted,
+            fontSize = 12.sp
+        )
+
+        XboxCatalogScreen()
     }
 }
 
 @Composable
-private fun GameCard(
-    game: GameItem,
-    isTv: Boolean
-) {
+private fun CloudGamingScreen() {
     Column(
-        modifier = Modifier.width(if (isTv) 185.dp else 145.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Panel, RoundedCornerShape(18.dp))
+            .padding(23.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(if (isTv) 220.dp else 175.dp)
-                .clip(RoundedCornerShape(13.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(game.start, game.end)
-                    )
-                )
-                .border(
-                    1.dp,
-                    Color(0xFF39443B),
-                    RoundedCornerShape(13.dp)
-                )
-                .padding(12.dp)
-        ) {
-            Icon(
-                Icons.Filled.SportsEsports,
-                contentDescription = null,
-                tint = Color(0x55FFFFFF),
-                modifier = Modifier
-                    .size(55.dp)
-                    .align(Alignment.Center)
-            )
-
-            Text(
-                game.name,
-                color = White,
-                fontWeight = FontWeight.Black,
-                fontSize = 17.sp,
-                modifier = Modifier.align(Alignment.BottomStart)
-            )
-        }
+        Icon(
+            Icons.Filled.CloudQueue,
+            contentDescription = null,
+            tint = Green,
+            modifier = Modifier.size(42.dp)
+        )
 
         Text(
-            game.category,
+            "CLOUD GAMING",
+            color = Green,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Black
+        )
+
+        Text(
+            "Jogue na nuvem",
+            color = White,
+            fontSize = 25.sp,
+            fontWeight = FontWeight.Black
+        )
+
+        Text(
+            "Esta área será responsável por iniciar e transmitir os jogos dentro do CloudPlay.",
             color = Muted,
-            fontSize = 10.sp,
-            modifier = Modifier.padding(top = 6.dp)
+            fontSize = 13.sp
+        )
+
+        HorizontalDivider(color = Color(0xFF303B32))
+
+        Text(
+            "Transmissão ainda não conectada",
+            color = Color(0xFFFFD27A),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            "O catálogo de jogos já tem uma tela própria, mas ainda precisamos de uma integração de streaming compatível e autorizada. O login Microsoft sozinho não inicia uma sessão de jogo.",
+            color = Muted,
+            fontSize = 12.sp
         )
     }
 }
@@ -713,49 +678,3 @@ private fun ProfileScreen(
         )
     }
 }
-
-@Composable
-private fun EmptyScreen(
-    title: String,
-    description: String,
-    state: String
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Panel, RoundedCornerShape(18.dp))
-            .padding(23.dp),
-        verticalArrangement = Arrangement.spacedBy(13.dp)
-    ) {
-        Icon(
-            Icons.Filled.CloudQueue,
-            contentDescription = null,
-            tint = Green,
-            modifier = Modifier.size(42.dp)
-        )
-
-        Text(
-            title,
-            color = White,
-            fontSize = 25.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Text(
-            description,
-            color = Muted,
-            fontSize = 13.sp
-        )
-
-        HorizontalDivider(color = Color(0xFF303B32))
-
-        Text(
-            state,
-            color = Color(0xFFFFD27A),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-   
