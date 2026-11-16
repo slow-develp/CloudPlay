@@ -3,16 +3,14 @@ package com.cloudplay.app
 
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.concurrent.Executors
 
 data class XboxGame(
     val productId: String,
     val title: String,
     val imageUrl: String,
-    val description: String = ""
+    val description: String
 )
 
 object XboxCatalog {
@@ -26,19 +24,37 @@ object XboxCatalog {
     private const val RECENT_CLOUD_ID =
         "f13cf6b4-57e6-4459-89df-6aec18cf0538"
 
-    private val executor = Executors.newFixedThreadPool(2)
+    private const val CATALOG_URL =
+        "https://catalog.gamepass.com/v3/products"
 
-    private fun request(
-        url: String,
-        method: String = "GET",
-        body: String? = null
-    ): String {
+    private const val LIST_URL =
+        "https://catalog.gamepass.com/sigls/v2"
 
-        val connection = URL(url).openConnection()
-            as HttpURLConnection
+    fun loadCloudGames(): List<XboxGame> {
+        return loadGamesFromList(ALL_CLOUD_ID)
+    }
+
+    fun loadRecentlyAdded(): List<XboxGame> {
+        return loadGamesFromList(RECENT_CLOUD_ID)
+    }
+
+    private fun loadGamesFromList(listId: String): List<XboxGame> {
+        val ids = getProductIds(listId)
+
+        if (ids.isEmpty()) {
+            return emptyList()
+        }
+
+        return getProductDetails(ids)
+    }
+
+    private fun getProductIds(listId: String): List<String> {
+        val connection = URL(
+            "$LIST_URL?id=$listId&language=$LANGUAGE&market=$MARKET"
+        ).openConnection() as HttpURLConnection
 
         try {
-            connection.requestMethod = method
+            connection.requestMethod = "GET"
             connection.connectTimeout = 15000
             connection.readTimeout = 20000
 
@@ -49,7 +65,83 @@ object XboxCatalog {
 
             connection.setRequestProperty(
                 "User-Agent",
-                "CloudPlay Android"
+                "Mozilla/5.0"
+            )
+
+            connection.setRequestProperty(
+                "MS-CV",
+                "0"
+            )
+
+            val responseCode = connection.responseCode
+
+            val stream = if (responseCode in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+            }
+
+            val response = stream?.bufferedReader()?.use {
+                it.readText()
+            } ?: ""
+
+            if (responseCode !in 200..299) {
+                throw Exception(
+                    "Erro HTTP $responseCode ao consultar a lista: $response"
+                )
+            }
+
+            val json = JSONArray(response)
+            val ids = mutableListOf<String>()
+
+            for (i in 0 until json.length()) {
+                val item = json.opt(i)
+
+                val id = when (item) {
+                    is String -> item
+                    is JSONObject -> item.optString("id")
+                    else -> ""
+                }
+
+                if (id.isNotBlank() && id != "null") {
+                    ids.add(id)
+                }
+            }
+
+            return ids.distinct()
+
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun getProductDetails(
+        productIds: List<String>
+    ): List<XboxGame> {
+
+        val connection = URL(
+            "$CATALOG_URL?market=$MARKET&language=$LANGUAGE&hydration=RemoteHighSapphire0"
+        ).openConnection() as HttpURLConnection
+
+        try {
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 15000
+            connection.readTimeout = 25000
+            connection.doOutput = true
+
+            connection.setRequestProperty(
+                "Content-Type",
+                "application/json; charset=UTF-8"
+            )
+
+            connection.setRequestProperty(
+                "Accept",
+                "application/json"
+            )
+
+            connection.setRequestProperty(
+                "User-Agent",
+                "Mozilla/5.0"
             )
 
             connection.setRequestProperty(
@@ -67,25 +159,19 @@ object XboxCatalog {
                 "21.0.0"
             )
 
-            if (body != null) {
-                connection.doOutput = true
-
-                connection.setRequestProperty(
-                    "Content-Type",
-                    "application/json; charset=utf-8"
-                )
-
-                OutputStreamWriter(
-                    connection.outputStream,
-                    Charsets.UTF_8
-                ).use {
-                    it.write(body)
-                }
+            val requestBody = JSONObject().apply {
+                put("Products", JSONArray(productIds))
             }
 
-            val status = connection.responseCode
+            connection.outputStream.use { output ->
+                output.write(
+                    requestBody.toString().toByteArray(Charsets.UTF_8)
+                )
+            }
 
-            val stream = if (status in 200..299) {
+            val responseCode = connection.responseCode
+
+            val stream = if (responseCode in 200..299) {
                 connection.inputStream
             } else {
                 connection.errorStream
@@ -95,237 +181,108 @@ object XboxCatalog {
                 it.readText()
             } ?: ""
 
-            if (status !in 200..299) {
+            if (responseCode !in 200..299) {
                 throw Exception(
-                    "Erro HTTP $status: $response"
+                    "Erro HTTP $responseCode ao consultar o catálogo: $response"
                 )
             }
 
-            return response
+            return parseProducts(response)
 
         } finally {
             connection.disconnect()
         }
     }
 
-    private fun getProductIds(
-        listId: String
-    ): List<String> {
+    private fun parseProducts(response: String): List<XboxGame> {
+        val result = mutableListOf<XboxGame>()
+        val json = JSONObject(response)
 
-        val url =
-            "https://catalog.gamepass.com/sigls/v2" +
-            "?id=$listId" +
-            "&market=$MARKET" +
-            "&language=$LANGUAGE"
+        val products = json.optJSONObject("Products")
+            ?: json
 
-        val response = JSONArray(request(url))
-        val ids = mutableListOf<String>()
+        val keys = products.keys()
 
-        for (i in 0 until response.length()) {
+        while (keys.hasNext()) {
+            val productId = keys.next()
+            val product = products.optJSONObject(productId) ?: continue
 
-            val item = response.optJSONObject(i)
+            val localizedProperties =
+                product.optJSONArray("LocalizedProperties")
+
+            if (localizedProperties == null ||
+                localizedProperties.length() == 0
+            ) {
+                continue
+            }
+
+            val localized = localizedProperties.optJSONObject(0)
                 ?: continue
 
-            val id = item.optString("id")
+            val title = localized.optString("ProductTitle")
+                .ifBlank {
+                    localized.optString("ShortTitle")
+                }
+                .ifBlank {
+                    localized.optString("Title")
+                }
 
-            if (id.isNotBlank()) {
-                ids.add(id)
-            }
-        }
-
-        return ids.distinct()
-    }
-
-    private fun getProducts(
-        ids: List<String>
-    ): List<XboxGame> {
-
-        val games = mutableListOf<XboxGame>()
-
-        ids.chunked(20).forEach { chunk ->
-
-            val productsJson = JSONArray()
-
-            chunk.forEach { id ->
-                productsJson.put(id)
+            if (title.isBlank()) {
+                continue
             }
 
-            val body = JSONObject().apply {
-                put("Products", productsJson)
-            }
+            val description = localized.optString("ProductDescription")
+                .ifBlank {
+                    localized.optString("ShortDescription")
+                }
 
-            val url =
-                "https://catalog.gamepass.com/v3/products" +
-                "?market=$MARKET" +
-                "&language=$LANGUAGE" +
-                "&hydration=RemoteHighSapphire0"
+            val imageUrl = findImage(localized)
 
-            val response = JSONObject(
-                request(
-                    url = url,
-                    method = "POST",
-                    body = body.toString()
+            result.add(
+                XboxGame(
+                    productId = productId,
+                    title = title,
+                    imageUrl = imageUrl,
+                    description = description
                 )
             )
+        }
 
-            chunk.forEach productLoop@ { id ->
+        return result.distinctBy { it.productId }
+    }
 
-                val product = response.optJSONObject(id)
-                    ?: return@productLoop
+    private fun findImage(localized: JSONObject): String {
+        val images = localized.optJSONArray("Images")
+            ?: return ""
 
-                val title = findTitle(product)
+        var fallback = ""
 
-                if (title.isBlank()) {
-                    return@productLoop
+        for (i in 0 until images.length()) {
+            val image = images.optJSONObject(i) ?: continue
+
+            val uri = image.optString("Uri")
+                .ifBlank {
+                    image.optString("URL")
                 }
 
-                games.add(
-                    XboxGame(
-                        productId = id,
-                        title = title,
-                        imageUrl = findImage(product),
-                        description = findDescription(product)
-                    )
-                )
+            if (uri.isBlank()) {
+                continue
+            }
+
+            val purpose = image.optString("ImagePurpose")
+
+            if (
+                purpose.equals("Poster", true) ||
+                purpose.equals("BoxArt", true)
+            ) {
+                return uri
+            }
+
+            if (fallback.isBlank()) {
+                fallback = uri
             }
         }
 
-        return games.distinctBy { it.productId }
-    }
-
-    private fun findTitle(
-        product: JSONObject
-    ): String {
-
-        val localized =
-            product.optJSONArray("LocalizedProperties")
-
-        if (localized != null) {
-
-            for (i in 0 until localized.length()) {
-
-                val item = localized.optJSONObject(i)
-                    ?: continue
-
-                val title = item.optString("ProductTitle")
-
-                if (title.isNotBlank()) {
-                    return title
-                }
-            }
-        }
-
-        return product.optString("ProductTitle")
-    }
-
-    private fun findDescription(
-        product: JSONObject
-    ): String {
-
-        val localized =
-            product.optJSONArray("LocalizedProperties")
-
-        if (localized != null) {
-
-            for (i in 0 until localized.length()) {
-
-                val item = localized.optJSONObject(i)
-                    ?: continue
-
-                val description =
-                    item.optString("ShortDescription")
-                        .ifBlank {
-                            item.optString("ProductDescription")
-                        }
-
-                if (description.isNotBlank()) {
-                    return description
-                }
-            }
-        }
-
-        return ""
-    }
-
-    private fun findImage(
-        product: JSONObject
-    ): String {
-
-        val localized =
-            product.optJSONArray("LocalizedProperties")
-                ?: return ""
-
-        for (i in 0 until localized.length()) {
-
-            val item = localized.optJSONObject(i)
-                ?: continue
-
-            val images = item.optJSONArray("Images")
-                ?: continue
-
-            for (j in 0 until images.length()) {
-
-                val image = images.optJSONObject(j)
-                    ?: continue
-
-                val purpose = image.optString("ImagePurpose")
-                val uri = image.optString("Uri")
-
-                if (
-                    uri.startsWith("https://") &&
-                    (
-                        purpose.contains("Poster", true) ||
-                        purpose.contains("Tile", true) ||
-                        purpose.contains("BoxArt", true)
-                    )
-                ) {
-                    return uri
-                }
-            }
-        }
-
-        return ""
-    }
-
-    fun loadCloudGames(
-        onSuccess: (List<XboxGame>) -> Unit,
-        onError: (String) -> Unit
-    ) {
-        executor.execute {
-            try {
-                val ids = getProductIds(ALL_CLOUD_ID)
-                val games = getProducts(ids)
-
-                onSuccess(games)
-
-            } catch (error: Exception) {
-
-                onError(
-                    error.message
-                        ?: "Não foi possível carregar o catálogo."
-                )
-            }
-        }
-    }
-
-    fun loadRecentlyAdded(
-        onSuccess: (List<XboxGame>) -> Unit,
-        onError: (String) -> Unit
-    ) {
-        executor.execute {
-            try {
-                val ids = getProductIds(RECENT_CLOUD_ID)
-                val games = getProducts(ids)
-
-                onSuccess(games)
-
-            } catch (error: Exception) {
-
-                onError(
-                    error.message
-                        ?: "Não foi possível carregar as novidades."
-                )
-            }
-        }
+        return fallback
     }
 }
