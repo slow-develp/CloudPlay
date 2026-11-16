@@ -87,9 +87,11 @@ fun CloudPlayApp() {
         )
     ) {
         Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = BackgroundColor
-        ) {
+    modifier = Modifier
+        .fillMaxSize()
+        .windowInsetsPadding(WindowInsets.safeDrawing),
+    color = BackgroundColor
+) {
             if (isTv) {
                 TvInterface(
                     page = currentPage,
