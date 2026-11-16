@@ -326,42 +326,24 @@ private fun MobileInterface(
 }
 
 
+
 @Composable
 private fun CloudLogo() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = 4.dp)
-    ) {
-        Image(
-            painter = androidx.compose.ui.res.painterResource(
-                id = R.drawable.cloudplay_logo
-            ),
-            contentDescription = "CloudPlay",
-            modifier = Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(0.dp))
-        )
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isTv = configuration.screenWidthDp >= 700
 
-        Spacer(modifier = Modifier.width(10.dp))
-
-        Column {
-            Text(
-                text = "CLOUDPLAY",
-                color = Color.White,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.sp
-            )
-
-            Text(
-                text = "CLOUD GAMING",
-                color = SecondaryText,
-                fontSize = 9.sp,
-                letterSpacing = 2.sp
-            )
-        }
-    }
+    Image(
+        painter = androidx.compose.ui.res.painterResource(
+            id = R.drawable.cloudplay_logo
+        ),
+        contentDescription = "CloudPlay",
+        modifier = Modifier
+            .width(if (isTv) 190.dp else 150.dp)
+            .height(if (isTv) 65.dp else 52.dp),
+        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+    )
 }
+
 
 
 @Composable
