@@ -41,7 +41,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 
     // Login oficial Microsoft
-    implementation("com.microsoft.identity.client:msal:8.+")
+    implementation("com.microsoft.identity.client:msal:8.6.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
