@@ -73,19 +73,13 @@ private fun CloudPlayApp() {
     val microsoftAuth = remember(activity) {
         MicrosoftAuth(
             activity = activity,
-            onSignedIn = { username ->
-                account = username
-            },
+            onSignedIn = { username -> account = username },
             onSignedOut = {
                 account = null
                 profilePhoto = null
             },
-            onMessage = { message ->
-                notice = message
-            },
-            onPhotoLoaded = { bitmap ->
-                profilePhoto = bitmap
-            }
+            onMessage = { message -> notice = message },
+            onPhotoLoaded = { bitmap -> profilePhoto = bitmap }
         )
     }
 
@@ -93,20 +87,25 @@ private fun CloudPlayApp() {
         modifier = Modifier
             .fillMaxSize()
             .background(Background)
+            // Respeita a barra de status, recortes e barra de navegação.
+            .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         Header(
             account = account,
             photo = profilePhoto,
+            isTv = isTv,
             onProfile = { page = "Perfil" },
             onLogin = { microsoftAuth.signIn() }
         )
 
         NavigationMenu(
             selected = page,
+            isTv = isTv,
             onSelect = { page = it }
         )
 
         MainContent(
+            modifier = Modifier.weight(1f),
             page = page,
             account = account,
             photo = profilePhoto,
@@ -158,6 +157,7 @@ private fun ProfileAvatar(
 private fun Header(
     account: String?,
     photo: Bitmap?,
+    isTv: Boolean,
     onProfile: () -> Unit,
     onLogin: () -> Unit
 ) {
@@ -165,7 +165,10 @@ private fun Header(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFF0D140F))
-            .padding(horizontal = 18.dp, vertical = 15.dp),
+            .padding(
+                horizontal = if (isTv) 30.dp else 16.dp,
+                vertical = if (isTv) 18.dp else 11.dp
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -174,7 +177,7 @@ private fun Header(
                 Icons.Filled.Cloud,
                 contentDescription = null,
                 tint = Green,
-                modifier = Modifier.size(29.dp)
+                modifier = Modifier.size(if (isTv) 36.dp else 27.dp)
             )
 
             Spacer(Modifier.width(9.dp))
@@ -183,14 +186,14 @@ private fun Header(
                 Text(
                     "CLOUDPLAY",
                     color = White,
-                    fontSize = 18.sp,
+                    fontSize = if (isTv) 22.sp else 17.sp,
                     fontWeight = FontWeight.Black
                 )
 
                 Text(
                     "JOGUE SEM LIMITES",
                     color = Green,
-                    fontSize = 8.sp,
+                    fontSize = if (isTv) 10.sp else 8.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -198,14 +201,17 @@ private fun Header(
 
         if (account != null) {
             TextButton(onClick = onProfile) {
-                ProfileAvatar(photo = photo, size = 34)
+                ProfileAvatar(
+                    photo = photo,
+                    size = if (isTv) 40 else 32
+                )
 
-                Spacer(Modifier.width(7.dp))
+                Spacer(Modifier.width(6.dp))
 
                 Text(
                     "PERFIL",
                     color = White,
-                    fontSize = 11.sp
+                    fontSize = if (isTv) 13.sp else 10.sp
                 )
             }
         } else {
@@ -216,14 +222,14 @@ private fun Header(
                     contentColor = Color.Black
                 ),
                 contentPadding = PaddingValues(
-                    horizontal = 13.dp,
-                    vertical = 8.dp
+                    horizontal = if (isTv) 19.dp else 12.dp,
+                    vertical = if (isTv) 11.dp else 7.dp
                 )
             ) {
                 Text(
                     "ENTRAR",
                     fontWeight = FontWeight.Black,
-                    fontSize = 11.sp
+                    fontSize = if (isTv) 13.sp else 10.sp
                 )
             }
         }
@@ -233,6 +239,7 @@ private fun Header(
 @Composable
 private fun NavigationMenu(
     selected: String,
+    isTv: Boolean,
     onSelect: (String) -> Unit
 ) {
     val options = listOf(
@@ -247,17 +254,21 @@ private fun NavigationMenu(
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
             .background(Color(0xFF0D140F))
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = if (isTv) 22.dp else 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         options.forEach { option ->
             TextButton(
-                onClick = { onSelect(option) }
+                onClick = { onSelect(option) },
+                contentPadding = PaddingValues(
+                    horizontal = if (isTv) 20.dp else 11.dp,
+                    vertical = if (isTv) 12.dp else 7.dp
+                )
             ) {
                 Text(
                     option.uppercase(),
                     color = if (selected == option) Green else Muted,
-                    fontSize = 10.sp,
+                    fontSize = if (isTv) 13.sp else 9.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -269,6 +280,7 @@ private fun NavigationMenu(
 
 @Composable
 private fun MainContent(
+    modifier: Modifier = Modifier,
     page: String,
     account: String?,
     photo: Bitmap?,
@@ -279,14 +291,16 @@ private fun MainContent(
     onNavigate: (String) -> Unit
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
+            .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(
-                horizontal = if (isTv) 35.dp else 17.dp,
-                vertical = 20.dp
+                horizontal = if (isTv) 35.dp else 15.dp,
+                vertical = if (isTv) 28.dp else 15.dp
             ),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+        verticalArrangement = Arrangement.spacedBy(
+            if (isTv) 30.dp else 19.dp
+        )
     ) {
         when (page) {
             "Início" -> HomeScreen(
@@ -326,7 +340,9 @@ private fun HomeScreen(
     onNavigate: (String) -> Unit
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(25.dp)
+        verticalArrangement = Arrangement.spacedBy(
+            if (isTv) 30.dp else 20.dp
+        )
     ) {
         HeroBanner(
             account = account,
@@ -342,7 +358,7 @@ private fun HomeScreen(
             Text(
                 "EXPLORE O CLOUDPLAY",
                 color = White,
-                fontSize = 17.sp,
+                fontSize = if (isTv) 21.sp else 15.sp,
                 fontWeight = FontWeight.Black
             )
 
@@ -354,18 +370,14 @@ private fun HomeScreen(
                     title = "BIBLIOTECA",
                     subtitle = "Explorar jogos",
                     modifier = Modifier.weight(1f),
-                    onClick = {
-                        onNavigate("Biblioteca")
-                    }
+                    onClick = { onNavigate("Biblioteca") }
                 )
 
                 ActionCard(
                     title = "CLOUD GAMING",
                     subtitle = "Área de streaming",
                     modifier = Modifier.weight(1f),
-                    onClick = {
-                        onNavigate("Cloud Gaming")
-                    }
+                    onClick = { onNavigate("Cloud Gaming") }
                 )
             }
         }
@@ -387,7 +399,7 @@ private fun HeroBanner(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(if (isTv) 28.dp else 20.dp))
             .background(
                 Brush.linearGradient(
                     listOf(
@@ -400,15 +412,20 @@ private fun HeroBanner(
             .border(
                 1.dp,
                 Color(0xFF34533A),
-                RoundedCornerShape(22.dp)
+                RoundedCornerShape(if (isTv) 28.dp else 20.dp)
             )
-            .padding(if (isTv) 35.dp else 22.dp),
-        verticalArrangement = Arrangement.spacedBy(13.dp)
+            .padding(
+                horizontal = if (isTv) 35.dp else 19.dp,
+                vertical = if (isTv) 35.dp else 20.dp
+            ),
+        verticalArrangement = Arrangement.spacedBy(
+            if (isTv) 17.dp else 11.dp
+        )
     ) {
         Text(
             "SUA PRÓXIMA AVENTURA COMEÇA AQUI",
             color = Green,
-            fontSize = 10.sp,
+            fontSize = if (isTv) 13.sp else 9.sp,
             fontWeight = FontWeight.Black
         )
 
@@ -416,14 +433,14 @@ private fun HeroBanner(
             "Seus jogos.\nSeu universo.",
             color = White,
             fontWeight = FontWeight.Black,
-            fontSize = if (isTv) 39.sp else 31.sp,
-            lineHeight = if (isTv) 44.sp else 35.sp
+            fontSize = if (isTv) 43.sp else 29.sp,
+            lineHeight = if (isTv) 49.sp else 34.sp
         )
 
         Text(
             "Uma nova experiência de jogos na nuvem.",
             color = Color(0xFFD0DDD2),
-            fontSize = if (isTv) 14.sp else 11.sp
+            fontSize = if (isTv) 16.sp else 11.sp
         )
 
         if (account == null) {
@@ -433,7 +450,11 @@ private fun HeroBanner(
                     containerColor = Green,
                     contentColor = Color.Black
                 ),
-                shape = RoundedCornerShape(30.dp)
+                shape = RoundedCornerShape(30.dp),
+                contentPadding = PaddingValues(
+                    horizontal = 17.dp,
+                    vertical = 10.dp
+                )
             ) {
                 Icon(
                     Icons.Filled.PlayArrow,
@@ -444,7 +465,8 @@ private fun HeroBanner(
 
                 Text(
                     "ENTRAR COM MICROSOFT",
-                    fontWeight = FontWeight.Black
+                    fontWeight = FontWeight.Black,
+                    fontSize = if (isTv) 14.sp else 11.sp
                 )
             }
         } else {
