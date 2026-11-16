@@ -42,12 +42,13 @@ jobs:
 
       - name: Compilar APK de debug
         run: gradle --no-daemon :app:assembleDebug
-             
-              - name: Gerar Hash Microsoft
+
+      - name: Gerar Hash Microsoft
         run: |
-          keytool -exportcert -alias androiddebugkey \
+          keytool -exportcert \
+            -alias androiddebugkey \
             -keystore "$HOME/.android/debug.keystore" \
-            -storepass android -keypass android \
+            -storepass android \
             | openssl sha1 -binary | openssl base64
 
       - name: Publicar APK
@@ -55,4 +56,4 @@ jobs:
         with:
           name: CloudPlay-debug
           path: app/build/outputs/apk/debug/app-debug.apk
-
+          
