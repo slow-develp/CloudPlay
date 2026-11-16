@@ -629,7 +629,7 @@ private fun HeroBanner(
                 color = Color(0xFFD0DDD2),
                 fontSize = if (isTv) 14.sp else 11.sp
             )
-            Button(
+                        Button(
                 onClick = onLogin,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Green,
@@ -637,15 +637,16 @@ private fun HeroBanner(
                 ),
                 shape = RoundedCornerShape(30.dp)
             ) {
-                
-                    Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                    Spacer(Modifier.width(5.dp))
-                    Text("COMEÇAR", fontWeight = FontWeight.Black)
-                }
-            }
-        }
-    }
-}
+                Icon(
+                    Icons.Filled.PlayArrow,
+                    contentDescription = null
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    "COMEÇAR",
+                    fontWeight = FontWeight.Black
+                )
+                        }
 
 @Composable
 private fun GameSection(
