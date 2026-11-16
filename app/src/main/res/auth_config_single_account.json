@@ -11,7 +11,8 @@
       "audience": {
         "type": "AzureADandPersonalMicrosoftAccount",
         "tenant_id": "common"
-      }
+      },
+      "default": true
     }
   ]
 }
