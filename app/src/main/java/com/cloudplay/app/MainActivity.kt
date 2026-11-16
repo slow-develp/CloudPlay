@@ -1,30 +1,40 @@
+
 package com.cloudplay.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalConfiguration
 
-private val Bg = Color(0xFF080B10)
-private val Panel = Color(0xFF151B24)
-private val Green = Color(0xFF107C10)
-private val Muted = Color(0xFF9AA4B2)
+private val Bg = Color(0xFF080B0A)
+private val Panel = Color(0xFF121914)
+private val Green = Color(0xFF19E63B)
+private val Muted = Color(0xFF9BA69E)
+private val White = Color.White
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,96 +43,775 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class GameItem(
+    val name: String,
+    val category: String,
+    val start: Color,
+    val end: Color
+)
+
+private val games = listOf(
+    GameItem("FORTNITE", "Ação e batalha", Color(0xFF3927A8), Color(0xFF15102F)),
+    GameItem("CALL OF DUTY", "Tiro e ação", Color(0xFF9B4B13), Color(0xFF24140B)),
+    GameItem("MINECRAFT", "Aventura", Color(0xFF398CBA), Color(0xFF16442D)),
+    GameItem("ROBLOX", "Experiências", Color(0xFF454545), Color(0xFF101010)),
+    GameItem("GTA V", "Mundo aberto", Color(0xFF9B6A28), Color(0xFF24170E)),
+    GameItem("FORZA", "Corrida", Color(0xFF176A9C), Color(0xFF101D38)),
+    GameItem("STARFIELD", "Exploração", Color(0xFF39465B), Color(0xFF10141F))
+)
+
 @Composable
 fun CloudPlayApp() {
     var page by remember { mutableStateOf("Início") }
-    var notice by remember { mutableStateOf("CloudPlay iniciado. Integrações serão configuradas por etapas.") }
-    val tabs = listOf("Início", "Biblioteca", "Explorar", "Perfil")
-    MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFF5DD65D), background = Bg, surface = Panel)) {
-        Scaffold(containerColor = Bg, bottomBar = {
-            NavigationBar(containerColor = Color(0xFF10151D), contentColor = Color.White) {
-                tabs.forEach { tab ->
-                    NavigationBarItem(selected = page == tab, onClick = { page = tab },
-                        icon = { Text(when(tab) { "Início" -> "⌂"; "Biblioteca" -> "▣"; "Explorar" -> "⌕"; else -> "●" }, fontSize = 20.sp) },
-                        label = { Text(tab, fontSize = 10.sp) }, colors = NavigationBarItemDefaults.colors(selectedIconColor = Color.White, indicatorColor = Green, selectedTextColor = Color.White, unselectedTextColor = Muted))
-                }
-            }
-        }) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text("CLOUDPLAY", color = Color.White, fontWeight = FontWeight.Black, fontSize = 22.sp, letterSpacing = 1.5.sp)
-                        Text("JOGUE. CONECTE. DESCUBRA.", color = Muted, fontSize = 9.sp, letterSpacing = 1.2.sp)
+    var notice by remember {
+        mutableStateOf("Bem-vindo ao CloudPlay.")
+    }
+
+    val isTv = LocalConfiguration.current.screenWidthDp >= 700
+
+    val phoneTabs = listOf("Início", "Biblioteca", "Explorar", "Perfil")
+    val tvTabs = listOf(
+        "Início", "Biblioteca", "Game Pass",
+        "Pesquisar", "Perfil", "Configurações"
+    )
+
+    MaterialTheme(
+        colorScheme = darkColorScheme(
+            primary = Green,
+            background = Bg,
+            surface = Panel
+        )
+    ) {
+        Scaffold(
+            containerColor = Bg,
+            bottomBar = {
+                if (!isTv) {
+                    NavigationBar(
+                        containerColor = Color(0xFF101510)
+                    ) {
+                        phoneTabs.forEach { tab ->
+                            NavigationBarItem(
+                                selected = page == tab,
+                                onClick = { page = tab },
+                                icon = {
+                                    Icon(
+                                        navIcon(tab),
+                                        contentDescription = tab
+                                    )
+                                },
+                                label = {
+                                    Text(tab, fontSize = 10.sp)
+                                },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = Green,
+                                    selectedTextColor = Green,
+                                    indicatorColor = Color(0xFF203B25),
+                                    unselectedIconColor = Muted,
+                                    unselectedTextColor = Muted
+                                )
+                            )
+                        }
                     }
-                    Surface(color = Panel, shape = RoundedCornerShape(50)) {
-                        Text("CP", modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp), color = Color.White, fontWeight = FontWeight.Bold)
-                    }
                 }
-                when(page) {
-                    "Início" -> HomeScreen(onLogin = { notice = "Login Microsoft: próximo passo é registrar o aplicativo e configurar MSAL. Nenhuma senha será solicitada pelo CloudPlay." }, onExplore = { page = "Explorar" }, onLibrary = { page = "Biblioteca" })
-                    "Biblioteca" -> EmptyScreen("Minha biblioteca", "Sua biblioteca real aparecerá aqui quando conectarmos uma fonte de dados autorizada.", "Nenhum jogo conectado")
-                    "Explorar" -> EmptyScreen("Explorar jogos", "O catálogo será preenchido por uma integração autorizada. Não exibimos jogos inventados.", "Catálogo ainda não conectado")
-                    else -> EmptyScreen("Perfil", "O perfil Xbox será carregado após autenticação e autorização dos serviços correspondentes.", "Conta Microsoft não conectada")
+            }
+        ) { padding ->
+
+            if (isTv) {
+                Row(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    Sidebar(
+                        page = page,
+                        tabs = tvTabs,
+                        onSelect = { page = it },
+                        isTv = true
+                    )
+
+                    MainContent(
+                        page = page,
+                        notice = notice,
+                        isTv = true,
+                        onLogin = {
+                            notice =
+                                "A autenticação Microsoft oficial ainda precisa ser configurada."
+                        },
+                        onExplore = { page = "Explorar" },
+                        onLibrary = { page = "Biblioteca" }
+                    )
                 }
-                Text(notice, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp))
-                Text("VERSÃO 0.1.0 • PROTÓTIPO NATIVO", color = Color(0xFF586272), fontSize = 9.sp, modifier = Modifier.padding(18.dp))
+            } else {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    Header(
+                        onLogin = {
+                            notice =
+                                "A autenticação Microsoft oficial ainda precisa ser configurada."
+                        }
+                    )
+
+                    MainContent(
+                        page = page,
+                        notice = notice,
+                        isTv = false,
+                        onLogin = {
+                            notice =
+                                "A autenticação Microsoft oficial ainda precisa ser configurada."
+                        },
+                        onExplore = { page = "Explorar" },
+                        onLibrary = { page = "Biblioteca" }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun navIcon(tab: String): ImageVector {
+    return when (tab) {
+        "Início" -> Icons.Filled.Home
+        "Biblioteca" -> Icons.Filled.Apps
+        "Game Pass" -> Icons.Filled.SportsEsports
+        "Explorar", "Pesquisar" -> Icons.Filled.Search
+        "Perfil" -> Icons.Filled.AccountCircle
+        else -> Icons.Filled.Settings
+    }
+}
+
+@Composable
+private fun CloudLogo() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Filled.CloudQueue,
+                contentDescription = "CloudPlay",
+                tint = Green,
+                modifier = Modifier.size(43.dp)
+            )
+            Icon(
+                Icons.Filled.SportsEsports,
+                contentDescription = null,
+                tint = White,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
+        Row {
+            Text(
+                "Cloud",
+                color = White,
+                fontWeight = FontWeight.Black,
+                fontSize = 23.sp
+            )
+            Text(
+                "Play",
+                color = Green,
+                fontWeight = FontWeight.Black,
+                fontSize = 23.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun Header(onLogin: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Bg)
+            .padding(horizontal = 17.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        CloudLogo()
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            IconButton(onClick = {}) {
+                Icon(
+                    Icons.Filled.Search,
+                    contentDescription = "Pesquisar",
+                    tint = White
+                )
+            }
+
+            Surface(
+                onClick = onLogin,
+                color = Panel,
+                shape = RoundedCornerShape(30.dp)
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.AccountCircle,
+                        contentDescription = null,
+                        tint = Green,
+                        modifier = Modifier.size(27.dp)
+                    )
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        "Entrar",
+                        color = White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun HomeScreen(onLogin: () -> Unit, onExplore: () -> Unit, onLibrary: () -> Unit) {
-    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Box(Modifier.fillMaxWidth().height(220.dp).background(Brush.linearGradient(listOf(Color(0xFF1C3B2A), Color(0xFF101820), Color(0xFF18212C))), RoundedCornerShape(20.dp)).padding(20.dp), contentAlignment = Alignment.BottomStart) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("SEU PRÓXIMO JOGO COMEÇA AQUI", color = Color(0xFFB6F3B6), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                Text("Seu espaço de\njogos na nuvem.", color = Color.White, fontSize = 29.sp, lineHeight = 32.sp, fontWeight = FontWeight.ExtraBold)
-                Text("Uma plataforma independente em desenvolvimento.", color = Color(0xFFD0D7DE), fontSize = 12.sp)
+private fun Sidebar(
+    page: String,
+    tabs: List<String>,
+    onSelect: (String) -> Unit,
+    isTv: Boolean
+) {
+    Column(
+        Modifier
+            .width(if (isTv) 225.dp else 180.dp)
+            .fillMaxHeight()
+            .background(Color(0xFF0C110E))
+            .padding(horizontal = 13.dp, vertical = 23.dp)
+    ) {
+        CloudLogo()
+
+        Spacer(Modifier.height(42.dp))
+
+        tabs.forEach { tab ->
+            var focused by remember { mutableStateOf(false) }
+            val selected = page == tab
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 5.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(
+                        if (selected) Color(0xFF174D23)
+                        else Color.Transparent
+                    )
+                    .border(
+                        width = if (focused) 2.dp else 0.dp,
+                        color = if (focused) Green else Color.Transparent,
+                        shape = RoundedCornerShape(13.dp)
+                    )
+                    .onFocusChanged { focused = it.isFocused }
+                    .clickable { onSelect(tab) }
+                    .focusable()
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    navIcon(tab),
+                    contentDescription = tab,
+                    tint = if (selected) Green else Muted,
+                    modifier = Modifier.size(23.dp)
+                )
+
+                Spacer(Modifier.width(13.dp))
+
+                Text(
+                    tab,
+                    color = if (selected) White else Muted,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = 13.sp
+                )
             }
         }
-        Button(onClick = onLogin, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Green), shape = RoundedCornerShape(12.dp)) { Text("CONECTAR CONTA MICROSOFT", fontWeight = FontWeight.Bold) }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ActionCard("Minha biblioteca", "Jogos conectados", Modifier.weight(1f), onLibrary)
-            ActionCard("Explorar", "Catálogo autorizado", Modifier.weight(1f), onExplore)
-        }
-        Text("ESTADO DO PROJETO", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-        StatusRow("Aplicativo Android nativo", "Pronto para evoluir", true)
-        StatusRow("Login Microsoft (MSAL)", "Precisa de cadastro e configuração", false)
-        StatusRow("Dados Xbox / biblioteca", "Acesso depende de autorização", false)
-        StatusRow("Streaming com GPU", "Servidor ainda não disponível", false)
-        StatusRow("Controles na sessão", "Serão ligados ao streaming", false)
-    }
-}
 
-@Composable
-private fun ActionCard(title: String, subtitle: String, modifier: Modifier, onClick: () -> Unit) {
-    Surface(modifier.clickable(onClick = onClick), color = Panel, shape = RoundedCornerShape(14.dp)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text(subtitle, color = Muted, fontSize = 10.sp)
-        }
-    }
-}
+        Spacer(Modifier.weight(1f))
 
-@Composable
-private fun StatusRow(title: String, detail: String, ready: Boolean) {
-    Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(10.dp)).padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(if(ready) "●" else "○", color = if(ready) Color(0xFF5DD65D) else Color(0xFFFFC857), fontSize = 17.sp)
-        Spacer(Modifier.width(10.dp))
-        Column {
-            Text(title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Text(detail, color = Muted, fontSize = 10.sp)
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(Panel, RoundedCornerShape(15.dp))
+                .padding(13.dp)
+        ) {
+            Icon(
+                Icons.Filled.SportsEsports,
+                contentDescription = null,
+                tint = Green,
+                modifier = Modifier.size(30.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "CloudPlay",
+                color = White,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Sua experiência de jogos na nuvem.",
+                color = Muted,
+                fontSize = 10.sp
+            )
         }
     }
 }
 
 @Composable
-private fun EmptyScreen(title: String, description: String, state: String) {
-    Column(Modifier.fillMaxWidth().padding(18.dp).background(Panel, RoundedCornerShape(18.dp)).padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text(description, color = Muted, fontSize = 13.sp)
-        Divider(color = Color(0xFF303946))
-        Text(state, color = Color(0xFFFFD27A), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+private fun MainContent(
+    page: String,
+    notice: String,
+    isTv: Boolean,
+    onLogin: () -> Unit,
+    onExplore: () -> Unit,
+    onLibrary: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(
+                horizontal = if (isTv) 25.dp else 15.dp,
+                vertical = 12.dp
+            ),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        when (page) {
+            "Início" -> HomeScreen(
+                isTv,
+                onLogin,
+                onExplore,
+                onLibrary
+            )
+
+            "Biblioteca" -> EmptyScreen(
+                "Minha biblioteca",
+                "Seus jogos aparecerão aqui quando uma fonte autorizada de dados estiver conectada.",
+                "Biblioteca ainda não conectada"
+            )
+
+            "Explorar", "Pesquisar" -> EmptyScreen(
+                "Explorar jogos",
+                "O catálogo será conectado em uma próxima etapa.",
+                "Catálogo ainda não conectado"
+            )
+
+            "Game Pass" -> EmptyScreen(
+                "Game Pass",
+                "Esta área poderá mostrar informações disponíveis por integrações autorizadas.",
+                "Serviço ainda não conectado"
+            )
+
+            "Perfil" -> EmptyScreen(
+                "Seu perfil",
+                "Conecte sua conta Microsoft quando a autenticação oficial estiver configurada.",
+                "Conta não conectada"
+            )
+
+            else -> EmptyScreen(
+                "Configurações",
+                "As configurações do CloudPlay serão adicionadas aqui.",
+                "Em desenvolvimento"
+            )
+        }
+
+        Text(
+            notice,
+            color = Muted,
+            fontSize = 11.sp
+        )
+
+        Text(
+            "CLOUDPLAY • VERSÃO 0.2.0",
+            color = Color(0xFF536057),
+            fontSize = 10.sp
+        )
+    }
+}
+
+@Composable
+private fun HomeScreen(
+    isTv: Boolean,
+    onLogin: () -> Unit,
+    onExplore: () -> Unit,
+    onLibrary: () -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(21.dp)
+    ) {
+        HeroBanner(isTv, onLogin)
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    "Sua experiência começa aqui",
+                    color = White,
+                    fontSize = if (isTv) 25.sp else 20.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    "Descubra o universo CloudPlay",
+                    color = Muted,
+                    fontSize = 12.sp
+                )
+            }
+
+            Icon(
+                Icons.Filled.SportsEsports,
+                contentDescription = null,
+                tint = Green,
+                modifier = Modifier.size(30.dp)
+            )
+        }
+
+        GameSection(
+            "Jogos em destaque",
+            games,
+            isTv
+        )
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ActionCard(
+                "Minha biblioteca",
+                "Seus jogos conectados",
+                Modifier.weight(1f),
+                onLibrary
+            )
+
+            ActionCard(
+                "Explorar",
+                "Descubra mais",
+                Modifier.weight(1f),
+                onExplore
+            )
+        }
+
+        Surface(
+            color = Panel,
+            shape = RoundedCornerShape(17.dp)
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onLogin)
+                    .padding(17.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.AccountCircle,
+                    contentDescription = null,
+                    tint = Green,
+                    modifier = Modifier.size(36.dp)
+                )
+
+                Spacer(Modifier.width(12.dp))
+
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Conta Microsoft",
+                        color = White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Conexão oficial ainda em configuração",
+                        color = Muted,
+                        fontSize = 11.sp
+                    )
+                }
+
+                Icon(
+                    Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = Green
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroBanner(
+    isTv: Boolean,
+    onLogin: () -> Unit
+) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(if (isTv) 285.dp else 250.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color(0xFF063D19),
+                        Color(0xFF10291A),
+                        Color(0xFF080F0B),
+                        Color(0xFF15251B)
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                Color(0xFF285D32),
+                RoundedCornerShape(20.dp)
+            )
+            .padding(if (isTv) 30.dp else 20.dp)
+    ) {
+        Icon(
+            Icons.Filled.CloudQueue,
+            contentDescription = null,
+            tint = Color(0x3325F34A),
+            modifier = Modifier
+                .size(if (isTv) 260.dp else 180.dp)
+                .align(Alignment.CenterEnd)
+        )
+
+        Column(
+            Modifier.align(Alignment.CenterStart),
+            verticalArrangement = Arrangement.spacedBy(11.dp)
+        ) {
+            Text(
+                "BEM-VINDO AO CLOUDPLAY",
+                color = Green,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                letterSpacing = 1.5.sp
+            )
+
+            Text(
+                "Seus jogos.\nSeu universo.",
+                color = White,
+                fontWeight = FontWeight.Black,
+                fontSize = if (isTv) 39.sp else 31.sp,
+                lineHeight = if (isTv) 44.sp else 35.sp
+            )
+
+            Text(
+                "Uma nova experiência de jogos na nuvem.",
+                color = Color(0xFFD0DDD2),
+                fontSize = if (isTv) 14.sp else 11.sp
+            )
+
+            Button(
+                onClick = onLogin,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Green,
+                    contentColor = Color.Black
+                ),
+                shape = RoundedCornerShape(30.dp)
+            ) {
+                Icon(
+                    Icons.Filled.PlayArrow,
+                    contentDescription = null
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    "COMEÇAR",
+                    fontWeight = FontWeight.Black
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GameSection(
+    title: String,
+    items: List<GameItem>,
+    isTv: Boolean
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .width(4.dp)
+                        .height(25.dp)
+                        .background(Green, RoundedCornerShape(5.dp))
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    title,
+                    color = White,
+                    fontSize = if (isTv) 22.sp else 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Text(
+                "VER TODOS  →",
+                color = Green,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(items) { game ->
+                GameCard(game, isTv)
+            }
+        }
+
+        Text(
+            "Vitrine demonstrativa • jogos não conectados à biblioteca",
+            color = Color(0xFF657168),
+            fontSize = 9.sp
+        )
+    }
+}
+
+@Composable
+private fun GameCard(
+    game: GameItem,
+    isTv: Boolean
+) {
+    var focused by remember { mutableStateOf(false) }
+
+    Column(
+        Modifier
+            .width(if (isTv) 185.dp else 145.dp)
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(if (isTv) 220.dp else 175.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(game.start, game.end)
+                    )
+                )
+                .border(
+                    if (focused) 3.dp else 1.dp,
+                    if (focused) Green else Color(0xFF39443B),
+                    RoundedCornerShape(13.dp)
+                )
+                .padding(12.dp)
+        ) {
+            Icon(
+                Icons.Filled.SportsEsports,
+                contentDescription = null,
+                tint = Color(0x55FFFFFF),
+                modifier = Modifier
+                    .size(55.dp)
+                    .align(Alignment.Center)
+            )
+
+            Text(
+                game.name,
+                color = White,
+                fontWeight = FontWeight.Black,
+                fontSize = 17.sp,
+                modifier = Modifier.align(Alignment.BottomStart)
+            )
+        }
+
+        Text(
+            game.category,
+            color = Muted,
+            fontSize = 10.sp,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+    }
+}
+
+@Composable
+private fun ActionCard(
+    title: String,
+    subtitle: String,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        color = Panel,
+        shape = RoundedCornerShape(15.dp)
+    ) {
+        Column(
+            Modifier.padding(15.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Icon(
+                Icons.Filled.SportsEsports,
+                contentDescription = null,
+                tint = Green,
+                modifier = Modifier.size(27.dp)
+            )
+            Text(
+                title,
+                color = White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
+            Text(
+                subtitle,
+                color = Muted,
+                fontSize = 10.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyScreen(
+    title: String,
+    description: String,
+    state: String
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(Panel, RoundedCornerShape(18.dp))
+            .padding(23.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp)
+    ) {
+        Icon(
+            Icons.Filled.CloudQueue,
+            contentDescription = null,
+            tint = Green,
+            modifier = Modifier.size(42.dp)
+        )
+
+        Text(
+            title,
+            color = White,
+            fontSize = 25.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            description,
+            color = Muted,
+            fontSize = 13.sp
+        )
+
+        HorizontalDivider(color = Color(0xFF303B32))
+
+        Text(
+            state,
+            color = Color(0xFFFFD27A),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
