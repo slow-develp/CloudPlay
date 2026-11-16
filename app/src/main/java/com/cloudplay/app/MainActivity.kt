@@ -21,15 +21,19 @@ import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,18 +72,32 @@ private fun CloudPlayApp() {
     var account by remember { mutableStateOf<String?>(null) }
     var profilePhoto by remember { mutableStateOf<Bitmap?>(null) }
     var notice by remember { mutableStateOf("Bem-vindo ao CloudPlay!") }
-    var page by remember { mutableStateOf("Início") }
+    var page by rememberSaveable { mutableStateOf("Início") }
+
+    // Preferências do CloudPlay
+    var imageQuality by rememberSaveable { mutableStateOf("1080p") }
+    var dataSaver by rememberSaveable { mutableStateOf(false) }
+    var autoPlay by rememberSaveable { mutableStateOf(false) }
+    var touchControls by rememberSaveable { mutableStateOf(true) }
+    var vibration by rememberSaveable { mutableStateOf(true) }
+    var soundEffects by rememberSaveable { mutableStateOf(true) }
 
     val microsoftAuth = remember(activity) {
         MicrosoftAuth(
             activity = activity,
-            onSignedIn = { username -> account = username },
+            onSignedIn = { username ->
+                account = username
+            },
             onSignedOut = {
                 account = null
                 profilePhoto = null
             },
-            onMessage = { message -> notice = message },
-            onPhotoLoaded = { bitmap -> profilePhoto = bitmap }
+            onMessage = { message ->
+                notice = message
+            },
+            onPhotoLoaded = { bitmap ->
+                profilePhoto = bitmap
+            }
         )
     }
 
@@ -87,7 +105,6 @@ private fun CloudPlayApp() {
         modifier = Modifier
             .fillMaxSize()
             .background(Background)
-            // Respeita a barra de status, recortes e barra de navegação.
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         Header(
@@ -111,6 +128,18 @@ private fun CloudPlayApp() {
             photo = profilePhoto,
             notice = notice,
             isTv = isTv,
+            imageQuality = imageQuality,
+            dataSaver = dataSaver,
+            autoPlay = autoPlay,
+            touchControls = touchControls,
+            vibration = vibration,
+            soundEffects = soundEffects,
+            onImageQualityChange = { imageQuality = it },
+            onDataSaverChange = { dataSaver = it },
+            onAutoPlayChange = { autoPlay = it },
+            onTouchControlsChange = { touchControls = it },
+            onVibrationChange = { vibration = it },
+            onSoundEffectsChange = { soundEffects = it },
             onLogin = { microsoftAuth.signIn() },
             onLogout = { microsoftAuth.signOut() },
             onNavigate = { page = it }
@@ -246,7 +275,8 @@ private fun NavigationMenu(
         "Início",
         "Biblioteca",
         "Cloud Gaming",
-        "Perfil"
+        "Perfil",
+        "Configurações"
     )
 
     Row(
@@ -261,7 +291,7 @@ private fun NavigationMenu(
             TextButton(
                 onClick = { onSelect(option) },
                 contentPadding = PaddingValues(
-                    horizontal = if (isTv) 20.dp else 11.dp,
+                    horizontal = if (isTv) 18.dp else 10.dp,
                     vertical = if (isTv) 12.dp else 7.dp
                 )
             ) {
@@ -286,6 +316,18 @@ private fun MainContent(
     photo: Bitmap?,
     notice: String,
     isTv: Boolean,
+    imageQuality: String,
+    dataSaver: Boolean,
+    autoPlay: Boolean,
+    touchControls: Boolean,
+    vibration: Boolean,
+    soundEffects: Boolean,
+    onImageQualityChange: (String) -> Unit,
+    onDataSaverChange: (Boolean) -> Unit,
+    onAutoPlayChange: (Boolean) -> Unit,
+    onTouchControlsChange: (Boolean) -> Unit,
+    onVibrationChange: (Boolean) -> Unit,
+    onSoundEffectsChange: (Boolean) -> Unit,
     onLogin: () -> Unit,
     onLogout: () -> Unit,
     onNavigate: (String) -> Unit
@@ -319,7 +361,24 @@ private fun MainContent(
                 photo = photo,
                 notice = notice,
                 onLogin = onLogin,
-                onLogout = onLogout
+                onLogout = onLogout,
+                isTv = isTv
+            )
+
+            "Configurações" -> SettingsScreen(
+                isTv = isTv,
+                imageQuality = imageQuality,
+                dataSaver = dataSaver,
+                autoPlay = autoPlay,
+                touchControls = touchControls,
+                vibration = vibration,
+                soundEffects = soundEffects,
+                onImageQualityChange = onImageQualityChange,
+                onDataSaverChange = onDataSaverChange,
+                onAutoPlayChange = onAutoPlayChange,
+                onTouchControlsChange = onTouchControlsChange,
+                onVibrationChange = onVibrationChange,
+                onSoundEffectsChange = onSoundEffectsChange
             )
 
             else -> HomeScreen(
@@ -380,6 +439,13 @@ private fun HomeScreen(
                     onClick = { onNavigate("Cloud Gaming") }
                 )
             }
+
+            ActionCard(
+                title = "CONFIGURAÇÕES",
+                subtitle = "Personalizar sua experiência",
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { onNavigate("Configurações") }
+            )
         }
 
         Text(
@@ -602,101 +668,691 @@ private fun ActionCard(
     }
 }
 
+// PERFIL
+
 @Composable
 private fun ProfileScreen(
     account: String?,
     photo: Bitmap?,
     notice: String,
     onLogin: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    isTv: Boolean
 ) {
+    val horizontalPadding = if (isTv) 30.dp else 18.dp
+
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Panel, RoundedCornerShape(18.dp))
-            .padding(23.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(
+            if (isTv) 25.dp else 18.dp
+        )
     ) {
-        if (account != null) {
-            ProfileAvatar(
-                photo = photo,
-                size = 92
+        Column(
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(
+                "PERFIL DO JOGADOR",
+                color = Green,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black
             )
-        } else {
-            Icon(
-                Icons.Filled.Person,
-                contentDescription = null,
-                tint = Green,
-                modifier = Modifier.size(42.dp)
+
+            Text(
+                "Seu universo Xbox",
+                color = White,
+                fontSize = if (isTv) 30.sp else 25.sp,
+                fontWeight = FontWeight.Black
+            )
+
+            Text(
+                "Sua identidade, conquistas e atividade.",
+                color = Muted,
+                fontSize = 12.sp
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            Color(0xFF263D2A),
+                            Color(0xFF17251B),
+                            Color(0xFF111827)
+                        )
+                    )
+                )
+                .border(
+                    1.dp,
+                    Color(0xFF405C43),
+                    RoundedCornerShape(24.dp)
+                )
+                .padding(horizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(15.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "CLOUDPLAY PLAYER",
+                    color = Green,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black
+                )
+
+                StatusPill(
+                    text = if (account != null) "CONECTADO" else "DESCONECTADO",
+                    active = account != null
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                ProfileAvatar(
+                    photo = photo,
+                    size = if (isTv) 104 else 82
+                )
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        account ?: "Jogador CloudPlay",
+                        color = White,
+                        fontSize = if (isTv) 20.sp else 16.sp,
+                        fontWeight = FontWeight.Black
+                    )
+
+                    Text(
+                        if (account != null)
+                            "Conta Microsoft vinculada"
+                        else
+                            "Conecte sua conta para começar",
+                        color = Color(0xFFD0DDD2),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            HorizontalDivider(color = Color(0xFF526653))
+
+            Text(
+                "FOTO DE PERFIL",
+                color = White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                "A imagem exibida é a foto carregada da conta Microsoft. A alteração do gamerpic Xbox depende de uma integração autorizada.",
+                color = Color(0xFFD0DDD2),
+                fontSize = 11.sp,
+                lineHeight = 17.sp
             )
         }
 
         Text(
-            "Sua conta",
+            "ESTATÍSTICAS XBOX",
             color = White,
-            fontSize = 25.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Black
         )
 
-        if (account == null) {
-            Text(
-                "Entre com sua conta Microsoft para identificar seu perfil.",
-                color = Muted,
-                fontSize = 13.sp
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            ProfileStatCard(
+                title = "GAMERSCORE",
+                value = "—",
+                description = "Aguardando Xbox",
+                modifier = Modifier.weight(1f)
             )
 
-            Button(
-                onClick = onLogin,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Green,
-                    contentColor = Color.Black
-                )
-            ) {
-                Text("ENTRAR COM MICROSOFT")
-            }
-        } else {
+            ProfileStatCard(
+                title = "CONQUISTAS",
+                value = "—",
+                description = "Aguardando Xbox",
+                modifier = Modifier.weight(1f)
+            )
+
+            ProfileStatCard(
+                title = "GAMERTAG",
+                value = "—",
+                description = "Aguardando Xbox",
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        ProfileSectionCard(
+            title = "CONQUISTAS",
+            subtitle = "Suas conquistas desbloqueadas aparecerão aqui.",
+            status = "INTEGRAÇÃO XBOX PENDENTE"
+        )
+
+        ProfileSectionCard(
+            title = "ATIVIDADE RECENTE",
+            subtitle = "Seus jogos recentes, tempo de jogo e histórico serão exibidos aqui quando os dados Xbox estiverem disponíveis.",
+            status = "AGUARDANDO DADOS"
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Panel, RoundedCornerShape(20.dp))
+                .padding(19.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Text(
-                account,
+                "CONTA MICROSOFT",
                 color = Green,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black
+            )
+
+            Text(
+                account ?: "Nenhuma conta conectada",
+                color = White,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
 
             Text(
-                "Conta Microsoft conectada",
+                "Use sua conta Microsoft para conectar sua identidade ao CloudPlay.",
                 color = Muted,
-                fontSize = 12.sp
+                fontSize = 11.sp
             )
 
-            OutlinedButton(onClick = onLogout) {
-                Text(
-                    "SAIR DA CONTA",
-                    color = White
-                )
+            if (account == null) {
+                Button(
+                    onClick = onLogin,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Green,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(13.dp)
+                ) {
+                    Text(
+                        "CONECTAR MICROSOFT",
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onLogout,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(13.dp)
+                ) {
+                    Text(
+                        "DESCONECTAR CONTA",
+                        color = White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
-
-        HorizontalDivider(color = Color(0xFF303B32))
-
-        Text(
-            "INFORMAÇÕES DO XBOX",
-            color = White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp
-        )
-
-        Text(
-            "Gamertag, Gamerscore, conquistas e amigos serão exibidos quando a integração Xbox estiver disponível.",
-            color = Muted,
-            fontSize = 12.sp
-        )
-
-        HorizontalDivider(color = Color(0xFF303B32))
 
         Text(
             notice,
             color = Muted,
-            fontSize = 12.sp
+            fontSize = 11.sp
+        )
+    }
+}
+
+@Composable
+private fun StatusPill(
+    text: String,
+    active: Boolean
+) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(
+                if (active) Color(0xFF24452A)
+                else Color(0xFF3A3020)
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text,
+            color = if (active) Green else Color(0xFFFFD27A),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun ProfileStatCard(
+    title: String,
+    value: String,
+    description: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .background(Panel, RoundedCornerShape(15.dp))
+            .padding(horizontal = 9.dp, vertical = 15.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Text(
+            title,
+            color = Muted,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            value,
+            color = White,
+            fontSize = 23.sp,
+            fontWeight = FontWeight.Black
+        )
+
+        Text(
+            description,
+            color = Green,
+            fontSize = 8.sp
+        )
+    }
+}
+
+@Composable
+private fun ProfileSectionCard(
+    title: String,
+    subtitle: String,
+    status: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Panel, RoundedCornerShape(18.dp))
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            title,
+            color = White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Black
+        )
+
+        Text(
+            subtitle,
+            color = Muted,
+            fontSize = 11.sp,
+            lineHeight = 17.sp
+        )
+
+        Text(
+            status,
+            color = Green,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+// CONFIGURAÇÕES
+
+@Composable
+private fun SettingsScreen(
+    isTv: Boolean,
+    imageQuality: String,
+    dataSaver: Boolean,
+    autoPlay: Boolean,
+    touchControls: Boolean,
+    vibration: Boolean,
+    soundEffects: Boolean,
+    onImageQualityChange: (String) -> Unit,
+    onDataSaverChange: (Boolean) -> Unit,
+    onAutoPlayChange: (Boolean) -> Unit,
+    onTouchControlsChange: (Boolean) -> Unit,
+    onVibrationChange: (Boolean) -> Unit,
+    onSoundEffectsChange: (Boolean) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(19.dp)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(
+                "PERSONALIZE",
+                color = Green,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black
+            )
+
+            Text(
+                "Configurações",
+                color = White,
+                fontSize = if (isTv) 32.sp else 27.sp,
+                fontWeight = FontWeight.Black
+            )
+
+            Text(
+                "Ajuste sua experiência no CloudPlay.",
+                color = Muted,
+                fontSize = 12.sp
+            )
+        }
+
+        SettingsGroup(
+            title = "QUALIDADE DE IMAGEM",
+            subtitle = "Escolha sua preferência de resolução."
+        ) {
+            Text(
+                "Resolução preferida",
+                color = White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                "A resolução real dependerá do serviço de streaming, do jogo e do dispositivo.",
+                color = Muted,
+                fontSize = 10.sp,
+                lineHeight = 15.sp
+            )
+
+            val qualities = listOf("720p", "1080p", "1440p", "4K")
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                qualities.forEach { quality ->
+                    Surface(
+                        onClick = { onImageQualityChange(quality) },
+                        modifier = Modifier.weight(1f),
+                        color = if (imageQuality == quality)
+                            Color(0xFF29452B)
+                        else
+                            Color(0xFF1B241D),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (imageQuality == quality) Green
+                            else Color(0xFF303B32)
+                        )
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(vertical = 13.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                quality,
+                                color = if (imageQuality == quality)
+                                    Green else White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            Text(
+                "Selecionado: $imageQuality",
+                color = Green,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        SettingsGroup(
+            title = "ECONOMIA DE DADOS",
+            subtitle = "Controle suas preferências de consumo."
+        ) {
+            SettingsSwitch(
+                title = "Economizar dados",
+                description = "Preferir menor consumo de internet durante o uso.",
+                checked = dataSaver,
+                onCheckedChange = onDataSaverChange
+            )
+        }
+
+        SettingsGroup(
+            title = "REPRODUÇÃO",
+            subtitle = "Preferências para abrir conteúdos."
+        ) {
+            SettingsSwitch(
+                title = "Reprodução automática",
+                description = "Permitir reprodução automática quando houver suporte.",
+                checked = autoPlay,
+                onCheckedChange = onAutoPlayChange
+            )
+        }
+
+        SettingsGroup(
+            title = "CONTROLES",
+            subtitle = "Personalize os controles durante os jogos."
+        ) {
+            SettingsSwitch(
+                title = "Controles virtuais",
+                description = if (isTv)
+                    "Na TV, priorize controle físico."
+                else
+                    "Exibir controles na tela do celular quando o jogo oferecer suporte.",
+                checked = touchControls,
+                onCheckedChange = onTouchControlsChange
+            )
+
+            HorizontalDivider(color = Color(0xFF303B32))
+
+            SettingsSwitch(
+                title = "Vibração",
+                description = "Ativar resposta tátil quando disponível.",
+                checked = vibration,
+                onCheckedChange = onVibrationChange
+            )
+
+            HorizontalDivider(color = Color(0xFF303B32))
+
+            SettingsSwitch(
+                title = "Efeitos sonoros",
+                description = "Ativar sons da interface quando disponíveis.",
+                checked = soundEffects,
+                onCheckedChange = onSoundEffectsChange
+            )
+        }
+
+        SettingsGroup(
+            title = "APARÊNCIA",
+            subtitle = "Visual do aplicativo."
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF1B241D))
+                    .padding(13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Background)
+                        .border(
+                            1.dp,
+                            Color(0xFF344438),
+                            RoundedCornerShape(10.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Settings,
+                        contentDescription = null,
+                        tint = Green
+                    )
+                }
+
+                Spacer(Modifier.width(12.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        "Tema CloudPlay",
+                        color = White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        "Grafite e preto com detalhes verdes",
+                        color = Muted,
+                        fontSize = 10.sp
+                    )
+                }
+
+                StatusPill(
+                    text = "ATIVO",
+                    active = true
+                )
+            }
+        }
+
+        SettingsGroup(
+            title = "SOBRE O CLOUDPLAY",
+            subtitle = "Informações do aplicativo."
+        ) {
+            SettingsInfoRow("Aplicativo", "CloudPlay")
+
+            HorizontalDivider(color = Color(0xFF303B32))
+
+            SettingsInfoRow("Versão", "0.2.0")
+
+            HorizontalDivider(color = Color(0xFF303B32))
+
+            SettingsInfoRow(
+                "Plataforma",
+                if (isTv) "Android TV" else "Android"
+            )
+        }
+
+        Text(
+            "Algumas opções são preferências preparadas para a futura integração de streaming e podem ainda não alterar a reprodução.",
+            color = Muted,
+            fontSize = 10.sp,
+            lineHeight = 15.sp
+        )
+
+        Text(
+            "CloudPlay • Configurações",
+            color = Muted,
+            fontSize = 10.sp
+        )
+    }
+}
+
+@Composable
+private fun SettingsGroup(
+    title: String,
+    subtitle: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Panel, RoundedCornerShape(18.dp))
+            .padding(17.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(
+                title,
+                color = Green,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black
+            )
+
+            Text(
+                subtitle,
+                color = Muted,
+                fontSize = 10.sp
+            )
+        }
+
+        content()
+    }
+}
+
+@Composable
+private fun SettingsSwitch(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                title,
+                color = White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                description,
+                color = Muted,
+                fontSize = 10.sp,
+                lineHeight = 14.sp
+            )
+        }
+
+        Spacer(Modifier.width(8.dp))
+
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
+private fun SettingsInfoRow(
+    title: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            title,
+            color = Muted,
+            fontSize = 11.sp
+        )
+
+        Text(
+            value,
+            color = White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
         )
     }
 }
