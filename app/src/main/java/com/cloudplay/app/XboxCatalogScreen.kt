@@ -2,8 +2,6 @@
 package com.cloudplay.app
 
 import android.graphics.BitmapFactory
-import android.os.Handler
-import android.os.Looper
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,8 +21,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.net.URL
-import java.util.concurrent.Executors
 
 private val CatalogGreen = Color(0xFF8BFF4D)
 private val CatalogWhite = Color(0xFFF5F8F5)
@@ -33,6 +32,7 @@ private val CatalogPanel = Color(0xFF121A14)
 
 @Composable
 fun XboxCatalogScreen() {
+
     var cloudGames by remember {
         mutableStateOf<List<XboxGame>>(emptyList())
     }
@@ -41,66 +41,63 @@ fun XboxCatalogScreen() {
         mutableStateOf<List<XboxGame>>(emptyList())
     }
 
-    var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf("") }
+    var loading by remember {
+        mutableStateOf(true)
+    }
+
+    var error by remember {
+        mutableStateOf("")
+    }
 
     LaunchedEffect(Unit) {
-        val mainHandler = Handler(Looper.getMainLooper())
 
-        XboxCatalog.loadCloudGames(
-            onSuccess = { games ->
-                mainHandler.post {
-                    cloudGames = games
-                    loading = false
-                }
-            },
-            onError = { message ->
-                mainHandler.post {
-                    error = message
-                    loading = false
-                }
-            }
-        )
+        loading = true
+        error = ""
 
-        XboxCatalog.loadRecentlyAdded(
-            onSuccess = { games ->
-                mainHandler.post {
-                    recentGames = games
-                }
-            },
-            onError = { message ->
-                mainHandler.post {
-                    if (error.isBlank()) {
-                        error = message
-                    }
-                }
+        try {
+            cloudGames = withContext(Dispatchers.IO) {
+                XboxCatalog.loadCloudGames()
             }
-        )
+
+            recentGames = withContext(Dispatchers.IO) {
+                XboxCatalog.loadRecentlyAdded()
+            }
+
+            if (cloudGames.isEmpty() && recentGames.isEmpty()) {
+                error = "Nenhum jogo foi encontrado nas listas consultadas."
+            }
+
+        } catch (e: Exception) {
+            error = e.message ?: "Erro desconhecido ao consultar o catálogo."
+        } finally {
+            loading = false
+        }
     }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
+
         Column(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                "XBOX CLOUD GAMING",
+                text = "XBOX CLOUD GAMING",
                 color = CatalogGreen,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Black
             )
 
             Text(
-                "Jogos para jogar",
+                text = "Jogos para jogar",
                 color = CatalogWhite,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Black
             )
 
             Text(
-                "Catálogo consultado online",
+                text = "Catálogo consultado online",
                 color = CatalogMuted,
                 fontSize = 12.sp
             )
@@ -121,19 +118,19 @@ fun XboxCatalogScreen() {
                 Spacer(Modifier.width(12.dp))
 
                 Text(
-                    "Carregando catálogo...",
+                    text = "Carregando catálogo...",
                     color = CatalogWhite
                 )
             }
         }
 
-        if (error.isNotBlank() && cloudGames.isEmpty()) {
+        if (error.isNotBlank() && cloudGames.isEmpty() && recentGames.isEmpty()) {
             Surface(
                 color = CatalogPanel,
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Text(
-                    "Não foi possível consultar o catálogo.\n$error",
+                    text = "Não foi possível consultar o catálogo.\n$error",
                     color = CatalogMuted,
                     modifier = Modifier.padding(16.dp),
                     fontSize = 12.sp
@@ -155,16 +152,16 @@ fun XboxCatalogScreen() {
             )
         }
 
-        if (!loading && cloudGames.isEmpty() && error.isBlank()) {
+        if (!loading && cloudGames.isEmpty() && recentGames.isEmpty() && error.isBlank()) {
             Text(
-                "Nenhum jogo foi retornado pela consulta.",
+                text = "Nenhum jogo foi retornado pela consulta.",
                 color = CatalogMuted,
                 fontSize = 12.sp
             )
         }
 
         Text(
-            "A disponibilidade para jogar depende da região, da conta e do plano Xbox.",
+            text = "A disponibilidade para jogar depende da região, da conta e do plano Xbox.",
             color = CatalogMuted,
             fontSize = 10.sp
         )
@@ -179,8 +176,9 @@ private fun CatalogSection(
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+
         Text(
-            title,
+            text = title,
             color = CatalogWhite,
             fontSize = 15.sp,
             fontWeight = FontWeight.Black
@@ -201,10 +199,12 @@ private fun CatalogSection(
 
 @Composable
 private fun CatalogGameCard(game: XboxGame) {
+
     Column(
         modifier = Modifier.width(145.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -213,11 +213,12 @@ private fun CatalogGameCard(game: XboxGame) {
                 .background(CatalogPanel),
             contentAlignment = Alignment.Center
         ) {
+
             if (game.imageUrl.isNotBlank()) {
                 RemoteGameImage(url = game.imageUrl)
             } else {
                 Text(
-                    game.title,
+                    text = game.title,
                     color = CatalogWhite,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
@@ -227,7 +228,7 @@ private fun CatalogGameCard(game: XboxGame) {
         }
 
         Text(
-            game.title,
+            text = game.title,
             color = CatalogWhite,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
@@ -238,30 +239,24 @@ private fun CatalogGameCard(game: XboxGame) {
 
 @Composable
 private fun RemoteGameImage(url: String) {
+
     var bitmap by remember(url) {
         mutableStateOf<android.graphics.Bitmap?>(null)
     }
 
     LaunchedEffect(url) {
-        val executor = Executors.newSingleThreadExecutor()
 
-        executor.execute {
+        bitmap = withContext(Dispatchers.IO) {
             try {
                 val connection = URL(url).openConnection()
                 connection.connectTimeout = 10000
                 connection.readTimeout = 10000
 
-                val image = connection.getInputStream().use {
+                connection.getInputStream().use {
                     BitmapFactory.decodeStream(it)
                 }
-
-                Handler(Looper.getMainLooper()).post {
-                    bitmap = image
-                }
             } catch (_: Exception) {
-                // Mantém o cartão caso a imagem não carregue.
-            } finally {
-                executor.shutdown()
+                null
             }
         }
     }
@@ -269,7 +264,7 @@ private fun RemoteGameImage(url: String) {
     if (bitmap != null) {
         Image(
             bitmap = bitmap!!.asImageBitmap(),
-            contentDescription = "Capa do jogo",
+            contentDescription = "Capa de ${url}",
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
         )
