@@ -1,6 +1,7 @@
 
 package com.cloudplay.app
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,10 +26,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalConfiguration
 
 private val Bg = Color(0xFF080B0A)
 private val Panel = Color(0xFF121914)
@@ -39,7 +41,9 @@ private val White = Color.White
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { CloudPlayApp() }
+        setContent {
+            CloudPlayApp()
+        }
     }
 }
 
@@ -63,8 +67,26 @@ private val games = listOf(
 @Composable
 fun CloudPlayApp() {
     var page by remember { mutableStateOf("Início") }
-    var notice by remember {
-        mutableStateOf("Bem-vindo ao CloudPlay.")
+    var notice by remember { mutableStateOf("Preparando login Microsoft...") }
+    var account by remember { mutableStateOf<String?>(null) }
+
+    val activity = LocalContext.current as Activity
+
+    val microsoftAuth = remember(activity) {
+        MicrosoftAuth(
+            activity = activity,
+            onSignedIn = { account = it },
+            onSignedOut = { account = null },
+            onMessage = { notice = it }
+        )
+    }
+
+    val loginAction = {
+        if (account == null) {
+            microsoftAuth.signIn()
+        } else {
+            page = "Perfil"
+        }
     }
 
     val isTv = LocalConfiguration.current.screenWidthDp >= 700
@@ -94,10 +116,7 @@ fun CloudPlayApp() {
                                 selected = page == tab,
                                 onClick = { page = tab },
                                 icon = {
-                                    Icon(
-                                        navIcon(tab),
-                                        contentDescription = tab
-                                    )
+                                    Icon(navIcon(tab), contentDescription = tab)
                                 },
                                 label = {
                                     Text(tab, fontSize = 10.sp)
@@ -132,11 +151,10 @@ fun CloudPlayApp() {
                     MainContent(
                         page = page,
                         notice = notice,
+                        account = account,
                         isTv = true,
-                        onLogin = {
-                            notice =
-                                "A autenticação Microsoft oficial ainda precisa ser configurada."
-                        },
+                        onLogin = loginAction,
+                        onLogout = { microsoftAuth.signOut() },
                         onExplore = { page = "Explorar" },
                         onLibrary = { page = "Biblioteca" }
                     )
@@ -148,20 +166,17 @@ fun CloudPlayApp() {
                         .padding(padding)
                 ) {
                     Header(
-                        onLogin = {
-                            notice =
-                                "A autenticação Microsoft oficial ainda precisa ser configurada."
-                        }
+                        account = account,
+                        onLogin = loginAction
                     )
 
                     MainContent(
                         page = page,
                         notice = notice,
+                        account = account,
                         isTv = false,
-                        onLogin = {
-                            notice =
-                                "A autenticação Microsoft oficial ainda precisa ser configurada."
-                        },
+                        onLogin = loginAction,
+                        onLogout = { microsoftAuth.signOut() },
                         onExplore = { page = "Explorar" },
                         onLibrary = { page = "Biblioteca" }
                     )
@@ -204,24 +219,17 @@ private fun CloudLogo() {
         }
 
         Row {
-            Text(
-                "Cloud",
-                color = White,
-                fontWeight = FontWeight.Black,
-                fontSize = 23.sp
-            )
-            Text(
-                "Play",
-                color = Green,
-                fontWeight = FontWeight.Black,
-                fontSize = 23.sp
-            )
+            Text("Cloud", color = White, fontWeight = FontWeight.Black, fontSize = 23.sp)
+            Text("Play", color = Green, fontWeight = FontWeight.Black, fontSize = 23.sp)
         }
     }
 }
 
 @Composable
-private fun Header(onLogin: () -> Unit) {
+private fun Header(
+    account: String?,
+    onLogin: () -> Unit
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -232,41 +240,28 @@ private fun Header(onLogin: () -> Unit) {
     ) {
         CloudLogo()
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Surface(
+            onClick = onLogin,
+            color = Panel,
+            shape = RoundedCornerShape(30.dp)
         ) {
-            IconButton(onClick = {}) {
-                Icon(
-                    Icons.Filled.Search,
-                    contentDescription = "Pesquisar",
-                    tint = White
-                )
-            }
-
-            Surface(
-                onClick = onLogin,
-                color = Panel,
-                shape = RoundedCornerShape(30.dp)
+            Row(
+                Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Filled.AccountCircle,
-                        contentDescription = null,
-                        tint = Green,
-                        modifier = Modifier.size(27.dp)
-                    )
-                    Spacer(Modifier.width(7.dp))
-                    Text(
-                        "Entrar",
-                        color = White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Icon(
+                    Icons.Filled.AccountCircle,
+                    contentDescription = null,
+                    tint = Green,
+                    modifier = Modifier.size(27.dp)
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    account?.substringBefore("@") ?: "Entrar",
+                    color = White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
@@ -287,7 +282,6 @@ private fun Sidebar(
             .padding(horizontal = 13.dp, vertical = 23.dp)
     ) {
         CloudLogo()
-
         Spacer(Modifier.height(42.dp))
 
         tabs.forEach { tab ->
@@ -320,9 +314,7 @@ private fun Sidebar(
                     tint = if (selected) Green else Muted,
                     modifier = Modifier.size(23.dp)
                 )
-
                 Spacer(Modifier.width(13.dp))
-
                 Text(
                     tab,
                     color = if (selected) White else Muted,
@@ -347,11 +339,7 @@ private fun Sidebar(
                 modifier = Modifier.size(30.dp)
             )
             Spacer(Modifier.height(8.dp))
-            Text(
-                "CloudPlay",
-                color = White,
-                fontWeight = FontWeight.Bold
-            )
+            Text("CloudPlay", color = White, fontWeight = FontWeight.Bold)
             Text(
                 "Sua experiência de jogos na nuvem.",
                 color = Muted,
@@ -365,8 +353,10 @@ private fun Sidebar(
 private fun MainContent(
     page: String,
     notice: String,
+    account: String?,
     isTv: Boolean,
     onLogin: () -> Unit,
+    onLogout: () -> Unit,
     onExplore: () -> Unit,
     onLibrary: () -> Unit
 ) {
@@ -382,10 +372,7 @@ private fun MainContent(
     ) {
         when (page) {
             "Início" -> HomeScreen(
-                isTv,
-                onLogin,
-                onExplore,
-                onLibrary
+                isTv, account, onLogin, onExplore, onLibrary
             )
 
             "Biblioteca" -> EmptyScreen(
@@ -406,10 +393,10 @@ private fun MainContent(
                 "Serviço ainda não conectado"
             )
 
-            "Perfil" -> EmptyScreen(
-                "Seu perfil",
-                "Conecte sua conta Microsoft quando a autenticação oficial estiver configurada.",
-                "Conta não conectada"
+            "Perfil" -> ProfileScreen(
+                account = account,
+                onLogin = onLogin,
+                onLogout = onLogout
             )
 
             else -> EmptyScreen(
@@ -419,14 +406,9 @@ private fun MainContent(
             )
         }
 
+        Text(notice, color = Muted, fontSize = 11.sp)
         Text(
-            notice,
-            color = Muted,
-            fontSize = 11.sp
-        )
-
-        Text(
-            "CLOUDPLAY • VERSÃO 0.2.0",
+            "CLOUDPLAY • VERSÃO 0.3.0",
             color = Color(0xFF536057),
             fontSize = 10.sp
         )
@@ -436,6 +418,7 @@ private fun MainContent(
 @Composable
 private fun HomeScreen(
     isTv: Boolean,
+    account: String?,
     onLogin: () -> Unit,
     onExplore: () -> Unit,
     onLibrary: () -> Unit
@@ -463,7 +446,6 @@ private fun HomeScreen(
                     fontSize = 12.sp
                 )
             }
-
             Icon(
                 Icons.Filled.SportsEsports,
                 contentDescription = null,
@@ -472,22 +454,15 @@ private fun HomeScreen(
             )
         }
 
-        GameSection(
-            "Jogos em destaque",
-            games,
-            isTv
-        )
+        GameSection("Jogos em destaque", games, isTv)
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ActionCard(
                 "Minha biblioteca",
                 "Seus jogos conectados",
                 Modifier.weight(1f),
                 onLibrary
             )
-
             ActionCard(
                 "Explorar",
                 "Descubra mais",
@@ -513,7 +488,6 @@ private fun HomeScreen(
                     tint = Green,
                     modifier = Modifier.size(36.dp)
                 )
-
                 Spacer(Modifier.width(12.dp))
 
                 Column(Modifier.weight(1f)) {
@@ -523,7 +497,7 @@ private fun HomeScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Conexão oficial ainda em configuração",
+                        account ?: "Conecte sua conta Microsoft",
                         color = Muted,
                         fontSize = 11.sp
                     )
@@ -534,6 +508,67 @@ private fun HomeScreen(
                     contentDescription = null,
                     tint = Green
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileScreen(
+    account: String?,
+    onLogin: () -> Unit,
+    onLogout: () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(Panel, RoundedCornerShape(18.dp))
+            .padding(23.dp),
+        verticalArrangement = Arrangement.spacedBy(15.dp)
+    ) {
+        Icon(
+            Icons.Filled.AccountCircle,
+            contentDescription = null,
+            tint = Green,
+            modifier = Modifier.size(55.dp)
+        )
+
+        Text(
+            "Seu perfil",
+            color = White,
+            fontSize = 25.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        if (account != null) {
+            Text("Conta conectada", color = Green, fontWeight = FontWeight.Bold)
+            Text(account, color = White, fontSize = 14.sp)
+
+            Button(
+                onClick = onLogout,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF8B2525),
+                    contentColor = White
+                )
+            ) {
+                Icon(Icons.Filled.Logout, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("SAIR DA CONTA")
+            }
+        } else {
+            Text(
+                "Nenhuma conta Microsoft conectada.",
+                color = Muted
+            )
+
+            Button(
+                onClick = onLogin,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Green,
+                    contentColor = Color.Black
+                )
+            ) {
+                Text("ENTRAR COM MICROSOFT")
             }
         }
     }
@@ -559,11 +594,7 @@ private fun HeroBanner(
                     )
                 )
             )
-            .border(
-                1.dp,
-                Color(0xFF285D32),
-                RoundedCornerShape(20.dp)
-            )
+            .border(1.dp, Color(0xFF285D32), RoundedCornerShape(20.dp))
             .padding(if (isTv) 30.dp else 20.dp)
     ) {
         Icon(
@@ -586,7 +617,6 @@ private fun HeroBanner(
                 fontSize = 11.sp,
                 letterSpacing = 1.5.sp
             )
-
             Text(
                 "Seus jogos.\nSeu universo.",
                 color = White,
@@ -594,13 +624,11 @@ private fun HeroBanner(
                 fontSize = if (isTv) 39.sp else 31.sp,
                 lineHeight = if (isTv) 44.sp else 35.sp
             )
-
             Text(
                 "Uma nova experiência de jogos na nuvem.",
                 color = Color(0xFFD0DDD2),
                 fontSize = if (isTv) 14.sp else 11.sp
             )
-
             Button(
                 onClick = onLogin,
                 colors = ButtonDefaults.buttonColors(
@@ -609,15 +637,11 @@ private fun HeroBanner(
                 ),
                 shape = RoundedCornerShape(30.dp)
             ) {
-                Icon(
-                    Icons.Filled.PlayArrow,
-                    contentDescription = null
-                )
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    "COMEÇAR",
-                    fontWeight = FontWeight.Black
-                )
+                
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                    Spacer(Modifier.width(5.dp))
+                    Text("COMEÇAR", fontWeight = FontWeight.Black)
+                }
             }
         }
     }
@@ -629,9 +653,7 @@ private fun GameSection(
     items: List<GameItem>,
     isTv: Boolean
 ) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -652,7 +674,6 @@ private fun GameSection(
                     fontWeight = FontWeight.Bold
                 )
             }
-
             Text(
                 "VER TODOS  →",
                 color = Green,
@@ -661,9 +682,7 @@ private fun GameSection(
             )
         }
 
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(items) { game ->
                 GameCard(game, isTv)
             }
@@ -695,11 +714,7 @@ private fun GameCard(
                 .fillMaxWidth()
                 .height(if (isTv) 220.dp else 175.dp)
                 .clip(RoundedCornerShape(13.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(game.start, game.end)
-                    )
-                )
+                .background(Brush.linearGradient(listOf(game.start, game.end)))
                 .border(
                     if (focused) 3.dp else 1.dp,
                     if (focused) Green else Color(0xFF39443B),
@@ -715,7 +730,6 @@ private fun GameCard(
                     .size(55.dp)
                     .align(Alignment.Center)
             )
-
             Text(
                 game.name,
                 color = White,
@@ -763,11 +777,7 @@ private fun ActionCard(
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp
             )
-            Text(
-                subtitle,
-                color = Muted,
-                fontSize = 10.sp
-            )
+            Text(subtitle, color = Muted, fontSize = 10.sp)
         }
     }
 }
@@ -791,22 +801,14 @@ private fun EmptyScreen(
             tint = Green,
             modifier = Modifier.size(42.dp)
         )
-
         Text(
             title,
             color = White,
             fontSize = 25.sp,
             fontWeight = FontWeight.Bold
         )
-
-        Text(
-            description,
-            color = Muted,
-            fontSize = 13.sp
-        )
-
+        Text(description, color = Muted, fontSize = 13.sp)
         HorizontalDivider(color = Color(0xFF303B32))
-
         Text(
             state,
             color = Color(0xFFFFD27A),
