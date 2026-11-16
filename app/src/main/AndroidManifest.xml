@@ -10,8 +10,8 @@
     <application
         android:allowBackup="true"
         android:label="CloudPlay"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher"
+        android:icon="@drawable/cloudplay_icon"
+        android:roundIcon="@drawable/cloudplay_icon"
         android:theme="@style/Theme.CloudPlay"
         android:usesCleartextTraffic="false">
 
@@ -30,6 +30,5 @@
             </intent-filter>
 
         </activity>
-
     </application>
 </manifest>
