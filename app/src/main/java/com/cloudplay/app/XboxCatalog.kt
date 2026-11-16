@@ -3,9 +3,9 @@ package com.cloudplay.app
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.io.OutputStreamWriter
 import java.util.concurrent.Executors
 
 data class XboxGame(
@@ -33,6 +33,7 @@ object XboxCatalog {
         method: String = "GET",
         body: String? = null
     ): String {
+
         val connection = URL(url).openConnection()
             as HttpURLConnection
 
@@ -40,17 +41,35 @@ object XboxCatalog {
             connection.requestMethod = method
             connection.connectTimeout = 15000
             connection.readTimeout = 20000
+
             connection.setRequestProperty(
                 "Accept",
                 "application/json"
             )
+
             connection.setRequestProperty(
                 "User-Agent",
                 "CloudPlay Android"
             )
 
+            connection.setRequestProperty(
+                "MS-CV",
+                "0"
+            )
+
+            connection.setRequestProperty(
+                "Calling-App-Name",
+                "Xbox Cloud Gaming Web"
+            )
+
+            connection.setRequestProperty(
+                "Calling-App-Version",
+                "21.0.0"
+            )
+
             if (body != null) {
                 connection.doOutput = true
+
                 connection.setRequestProperty(
                     "Content-Type",
                     "application/json; charset=utf-8"
@@ -72,9 +91,9 @@ object XboxCatalog {
                 connection.errorStream
             }
 
-            val response = stream.bufferedReader().use {
+            val response = stream?.bufferedReader()?.use {
                 it.readText()
-            }
+            } ?: ""
 
             if (status !in 200..299) {
                 throw Exception(
@@ -83,6 +102,7 @@ object XboxCatalog {
             }
 
             return response
+
         } finally {
             connection.disconnect()
         }
@@ -91,6 +111,7 @@ object XboxCatalog {
     private fun getProductIds(
         listId: String
     ): List<String> {
+
         val url =
             "https://catalog.gamepass.com/sigls/v2" +
             "?id=$listId" +
@@ -101,6 +122,7 @@ object XboxCatalog {
         val ids = mutableListOf<String>()
 
         for (i in 0 until response.length()) {
+
             val item = response.optJSONObject(i)
                 ?: continue
 
@@ -117,6 +139,7 @@ object XboxCatalog {
     private fun getProducts(
         ids: List<String>
     ): List<XboxGame> {
+
         val games = mutableListOf<XboxGame>()
 
         ids.chunked(20).forEach { chunk ->
@@ -145,14 +168,15 @@ object XboxCatalog {
                 )
             )
 
-            chunk.forEach { id ->
+            chunk.forEach productLoop@ { id ->
+
                 val product = response.optJSONObject(id)
-                    ?: return@forEach
+                    ?: return@productLoop
 
                 val title = findTitle(product)
 
                 if (title.isBlank()) {
-                    return@forEach
+                    return@productLoop
                 }
 
                 games.add(
@@ -166,25 +190,30 @@ object XboxCatalog {
             }
         }
 
-        return games
+        return games.distinctBy { it.productId }
     }
 
     private fun findTitle(
         product: JSONObject
     ): String {
-        product.optJSONArray("LocalizedProperties")
-            ?.let { localized ->
-                for (i in 0 until localized.length()) {
-                    val item = localized.optJSONObject(i)
-                        ?: continue
 
-                    val title = item.optString("ProductTitle")
+        val localized =
+            product.optJSONArray("LocalizedProperties")
 
-                    if (title.isNotBlank()) {
-                        return title
-                    }
+        if (localized != null) {
+
+            for (i in 0 until localized.length()) {
+
+                val item = localized.optJSONObject(i)
+                    ?: continue
+
+                val title = item.optString("ProductTitle")
+
+                if (title.isNotBlank()) {
+                    return title
                 }
             }
+        }
 
         return product.optString("ProductTitle")
     }
@@ -192,23 +221,28 @@ object XboxCatalog {
     private fun findDescription(
         product: JSONObject
     ): String {
-        product.optJSONArray("LocalizedProperties")
-            ?.let { localized ->
-                for (i in 0 until localized.length()) {
-                    val item = localized.optJSONObject(i)
-                        ?: continue
 
-                    val description =
-                        item.optString("ShortDescription")
-                            .ifBlank {
-                                item.optString("ProductDescription")
-                            }
+        val localized =
+            product.optJSONArray("LocalizedProperties")
 
-                    if (description.isNotBlank()) {
-                        return description
-                    }
+        if (localized != null) {
+
+            for (i in 0 until localized.length()) {
+
+                val item = localized.optJSONObject(i)
+                    ?: continue
+
+                val description =
+                    item.optString("ShortDescription")
+                        .ifBlank {
+                            item.optString("ProductDescription")
+                        }
+
+                if (description.isNotBlank()) {
+                    return description
                 }
             }
+        }
 
         return ""
     }
@@ -216,11 +250,13 @@ object XboxCatalog {
     private fun findImage(
         product: JSONObject
     ): String {
+
         val localized =
             product.optJSONArray("LocalizedProperties")
                 ?: return ""
 
         for (i in 0 until localized.length()) {
+
             val item = localized.optJSONObject(i)
                 ?: continue
 
@@ -228,6 +264,7 @@ object XboxCatalog {
                 ?: continue
 
             for (j in 0 until images.length()) {
+
                 val image = images.optJSONObject(j)
                     ?: continue
 
@@ -260,9 +297,12 @@ object XboxCatalog {
                 val games = getProducts(ids)
 
                 onSuccess(games)
+
             } catch (error: Exception) {
+
                 onError(
-                    error.message ?: "Não foi possível carregar o catálogo."
+                    error.message
+                        ?: "Não foi possível carregar o catálogo."
                 )
             }
         }
@@ -278,9 +318,12 @@ object XboxCatalog {
                 val games = getProducts(ids)
 
                 onSuccess(games)
+
             } catch (error: Exception) {
+
                 onError(
-                    error.message ?: "Não foi possível carregar as novidades."
+                    error.message
+                        ?: "Não foi possível carregar as novidades."
                 )
             }
         }
