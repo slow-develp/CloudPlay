@@ -2,9 +2,11 @@
 package com.cloudplay.app
 
 import android.app.Activity
+import android.graphics.Bitmap
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -12,12 +14,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudQueue
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SportsEsports
@@ -35,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -79,6 +83,7 @@ private fun CloudPlayApp() {
     val isTv = configuration.screenWidthDp >= 700
 
     var account by remember { mutableStateOf<String?>(null) }
+    var profilePhoto by remember { mutableStateOf<Bitmap?>(null) }
     var notice by remember { mutableStateOf("Bem-vindo ao CloudPlay!") }
     var page by remember { mutableStateOf("Início") }
 
@@ -90,9 +95,13 @@ private fun CloudPlayApp() {
             },
             onSignedOut = {
                 account = null
+                profilePhoto = null
             },
             onMessage = { message ->
                 notice = message
+            },
+            onPhotoLoaded = { bitmap ->
+                profilePhoto = bitmap
             }
         )
     }
@@ -104,6 +113,7 @@ private fun CloudPlayApp() {
     ) {
         Header(
             account = account,
+            photo = profilePhoto,
             onProfile = { page = "Perfil" },
             onLogin = { microsoftAuth.signIn() }
         )
@@ -116,6 +126,7 @@ private fun CloudPlayApp() {
         MainContent(
             page = page,
             account = account,
+            photo = profilePhoto,
             notice = notice,
             isTv = isTv,
             onLogin = { microsoftAuth.signIn() },
@@ -126,8 +137,44 @@ private fun CloudPlayApp() {
 }
 
 @Composable
+private fun ProfileAvatar(
+    photo: Bitmap?,
+    size: Int,
+    modifier: Modifier = Modifier
+) {
+    if (photo != null) {
+        Image(
+            bitmap = photo.asImageBitmap(),
+            contentDescription = "Foto da conta Microsoft",
+            modifier = modifier
+                .size(size.dp)
+                .clip(CircleShape)
+                .border(2.dp, Green, CircleShape),
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .size(size.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF26372A))
+                .border(2.dp, Green, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Filled.Person,
+                contentDescription = "Perfil",
+                tint = Green,
+                modifier = Modifier.size((size * 0.55f).dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun Header(
     account: String?,
+    photo: Bitmap?,
     onProfile: () -> Unit,
     onLogin: () -> Unit
 ) {
@@ -167,12 +214,8 @@ private fun Header(
 
         if (account != null) {
             TextButton(onClick = onProfile) {
-                Icon(
-                    Icons.Filled.Person,
-                    contentDescription = null,
-                    tint = Green
-                )
-                Spacer(Modifier.width(5.dp))
+                ProfileAvatar(photo = photo, size = 34)
+                Spacer(Modifier.width(7.dp))
                 Text(
                     "PERFIL",
                     color = White,
@@ -235,6 +278,7 @@ private fun NavigationMenu(
 private fun MainContent(
     page: String,
     account: String?,
+    photo: Bitmap?,
     notice: String,
     isTv: Boolean,
     onLogin: () -> Unit,
@@ -273,6 +317,7 @@ private fun MainContent(
 
             "Perfil" -> ProfileScreen(
                 account = account,
+                photo = photo,
                 notice = notice,
                 onLogin = onLogin,
                 onLogout = onLogout
@@ -573,6 +618,7 @@ private fun ActionCard(
 @Composable
 private fun ProfileScreen(
     account: String?,
+    photo: Bitmap?,
     notice: String,
     onLogin: () -> Unit,
     onLogout: () -> Unit
@@ -584,12 +630,19 @@ private fun ProfileScreen(
             .padding(23.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Icon(
-            Icons.Filled.Person,
-            contentDescription = null,
-            tint = Green,
-            modifier = Modifier.size(42.dp)
-        )
+        if (account != null) {
+            ProfileAvatar(
+                photo = photo,
+                size = 92
+            )
+        } else {
+            Icon(
+                Icons.Filled.Person,
+                contentDescription = null,
+                tint = Green,
+                modifier = Modifier.size(42.dp)
+            )
+        }
 
         Text(
             "Sua conta",
@@ -622,6 +675,12 @@ private fun ProfileScreen(
                 fontWeight = FontWeight.Bold
             )
 
+            Text(
+                "Conta Microsoft conectada",
+                color = Muted,
+                fontSize = 12.sp
+            )
+
             OutlinedButton(onClick = onLogout) {
                 Text(
                     "SAIR DA CONTA",
@@ -629,6 +688,21 @@ private fun ProfileScreen(
                 )
             }
         }
+
+        HorizontalDivider(color = Color(0xFF303B32))
+
+        Text(
+            "INFORMAÇÕES DO XBOX",
+            color = White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp
+        )
+
+        Text(
+            "Gamertag, Gamerscore, conquistas e amigos serão exibidos quando a integração Xbox estiver disponível.",
+            color = Muted,
+            fontSize = 12.sp
+        )
 
         HorizontalDivider(color = Color(0xFF303B32))
 
@@ -683,3 +757,5 @@ private fun EmptyScreen(
         )
     }
 }
+
+   
