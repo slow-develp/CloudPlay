@@ -7,8 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -16,27 +15,37 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val Bg = Color(0xFF080B0A)
-private val Panel = Color(0xFF121914)
-private val Green = Color(0xFF19E63B)
-private val Muted = Color(0xFF9BA69E)
-private val White = Color.White
+private val Background = Color(0xFF080D09)
+private val Panel = Color(0xFF121A14)
+private val Green = Color(0xFF8BFF4D)
+private val White = Color(0xFFF5F8F5)
+private val Muted = Color(0xFF9AA69C)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,581 +64,338 @@ private data class GameItem(
 )
 
 private val games = listOf(
-    GameItem("FORTNITE", "Ação e batalha", Color(0xFF3927A8), Color(0xFF15102F)),
-    GameItem("CALL OF DUTY", "Tiro e ação", Color(0xFF9B4B13), Color(0xFF24140B)),
-    GameItem("MINECRAFT", "Aventura", Color(0xFF398CBA), Color(0xFF16442D)),
-    GameItem("ROBLOX", "Experiências", Color(0xFF454545), Color(0xFF101010)),
-    GameItem("GTA V", "Mundo aberto", Color(0xFF9B6A28), Color(0xFF24170E)),
-    GameItem("FORZA", "Corrida", Color(0xFF176A9C), Color(0xFF101D38)),
-    GameItem("STARFIELD", "Exploração", Color(0xFF39465B), Color(0xFF10141F))
+    GameItem("FORTNITE", "Battle Royale", Color(0xFF352A70), Color(0xFF111B48)),
+    GameItem("FORZA", "Corrida", Color(0xFF176B50), Color(0xFF102A29)),
+    GameItem("GTA V", "Ação e aventura", Color(0xFF79502B), Color(0xFF282018)),
+    GameItem("MINECRAFT", "Sobrevivência", Color(0xFF47733C), Color(0xFF1C3520)),
+    GameItem("FIFA", "Esportes", Color(0xFF176B78), Color(0xFF102B3A)),
+    GameItem("ROBLOX", "Aventura", Color(0xFF733B3B), Color(0xFF321D25))
 )
 
 @Composable
-fun CloudPlayApp() {
-    var page by remember { mutableStateOf("Início") }
-    var notice by remember { mutableStateOf("Preparando login Microsoft...") }
-    var account by remember { mutableStateOf<String?>(null) }
-
+private fun CloudPlayApp() {
     val activity = LocalContext.current as Activity
+    val configuration = LocalConfiguration.current
+    val isTv = configuration.screenWidthDp >= 700
+
+    var account by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf("Bem-vindo ao CloudPlay!") }
+    var page by remember { mutableStateOf("Início") }
 
     val microsoftAuth = remember(activity) {
         MicrosoftAuth(
             activity = activity,
-            onSignedIn = { account = it },
-            onSignedOut = { account = null },
-            onMessage = { notice = it }
+            onSignedIn = { username ->
+                account = username
+            },
+            onSignedOut = {
+                account = null
+            },
+            onMessage = { message ->
+                notice = message
+            }
         )
     }
 
-    val loginAction = {
-        if (account == null) {
-            microsoftAuth.signIn()
-        } else {
-            page = "Perfil"
-        }
-    }
-
-    val isTv = LocalConfiguration.current.screenWidthDp >= 700
-
-    val phoneTabs = listOf("Início", "Biblioteca", "Explorar", "Perfil")
-    val tvTabs = listOf(
-        "Início", "Biblioteca", "Game Pass",
-        "Pesquisar", "Perfil", "Configurações"
-    )
-
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Green,
-            background = Bg,
-            surface = Panel
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+    ) {
+        Header(
+            account = account,
+            onProfile = { page = "Perfil" },
+            onLogin = { microsoftAuth.signIn() }
         )
-    ) {
-        Scaffold(
-            containerColor = Bg,
-            bottomBar = {
-                if (!isTv) {
-                    NavigationBar(
-                        containerColor = Color(0xFF101510)
-                    ) {
-                        phoneTabs.forEach { tab ->
-                            NavigationBarItem(
-                                selected = page == tab,
-                                onClick = { page = tab },
-                                icon = {
-                                    Icon(navIcon(tab), contentDescription = tab)
-                                },
-                                label = {
-                                    Text(tab, fontSize = 10.sp)
-                                },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = Green,
-                                    selectedTextColor = Green,
-                                    indicatorColor = Color(0xFF203B25),
-                                    unselectedIconColor = Muted,
-                                    unselectedTextColor = Muted
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-        ) { padding ->
 
-            if (isTv) {
-                Row(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                ) {
-                    Sidebar(
-                        page = page,
-                        tabs = tvTabs,
-                        onSelect = { page = it },
-                        isTv = true
-                    )
+        NavigationMenu(
+            selected = page,
+            onSelect = { page = it }
+        )
 
-                    MainContent(
-                        page = page,
-                        notice = notice,
-                        account = account,
-                        isTv = true,
-                        onLogin = loginAction,
-                        onLogout = { microsoftAuth.signOut() },
-                        onExplore = { page = "Explorar" },
-                        onLibrary = { page = "Biblioteca" }
-                    )
-                }
-            } else {
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                ) {
-                    Header(
-                        account = account,
-                        onLogin = loginAction
-                    )
-
-                    MainContent(
-                        page = page,
-                        notice = notice,
-                        account = account,
-                        isTv = false,
-                        onLogin = loginAction,
-                        onLogout = { microsoftAuth.signOut() },
-                        onExplore = { page = "Explorar" },
-                        onLibrary = { page = "Biblioteca" }
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun navIcon(tab: String): ImageVector {
-    return when (tab) {
-        "Início" -> Icons.Filled.Home
-        "Biblioteca" -> Icons.Filled.Apps
-        "Game Pass" -> Icons.Filled.SportsEsports
-        "Explorar", "Pesquisar" -> Icons.Filled.Search
-        "Perfil" -> Icons.Filled.AccountCircle
-        else -> Icons.Filled.Settings
-    }
-}
-
-@Composable
-private fun CloudLogo() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                Icons.Filled.CloudQueue,
-                contentDescription = "CloudPlay",
-                tint = Green,
-                modifier = Modifier.size(43.dp)
-            )
-            Icon(
-                Icons.Filled.SportsEsports,
-                contentDescription = null,
-                tint = White,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-
-        Row {
-            Text("Cloud", color = White, fontWeight = FontWeight.Black, fontSize = 23.sp)
-            Text("Play", color = Green, fontWeight = FontWeight.Black, fontSize = 23.sp)
-        }
+        MainContent(
+            page = page,
+            account = account,
+            notice = notice,
+            isTv = isTv,
+            onLogin = { microsoftAuth.signIn() },
+            onLogout = { microsoftAuth.signOut() },
+            onNavigate = { page = it }
+        )
     }
 }
 
 @Composable
 private fun Header(
     account: String?,
+    onProfile: () -> Unit,
     onLogin: () -> Unit
 ) {
     Row(
-        Modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .background(Bg)
-            .padding(horizontal = 17.dp, vertical = 13.dp),
+            .background(Color(0xFF0D140F))
+            .padding(horizontal = 18.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        CloudLogo()
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Filled.Cloud,
+                contentDescription = null,
+                tint = Green,
+                modifier = Modifier.size(29.dp)
+            )
 
-        Surface(
-            onClick = onLogin,
-            color = Panel,
-            shape = RoundedCornerShape(30.dp)
-        ) {
-            Row(
-                Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Filled.AccountCircle,
-                    contentDescription = null,
-                    tint = Green,
-                    modifier = Modifier.size(27.dp)
-                )
-                Spacer(Modifier.width(7.dp))
+            Spacer(Modifier.width(9.dp))
+
+            Column {
                 Text(
-                    account?.substringBefore("@") ?: "Entrar",
+                    "CLOUDPLAY",
                     color = White,
-                    fontSize = 12.sp,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Text(
+                    "JOGUE SEM LIMITES",
+                    color = Green,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        if (account != null) {
+            TextButton(onClick = onProfile) {
+                Icon(
+                    Icons.Filled.Person,
+                    contentDescription = null,
+                    tint = Green
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    "PERFIL",
+                    color = White,
+                    fontSize = 11.sp
+                )
+            }
+        } else {
+            Button(
+                onClick = onLogin,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Green,
+                    contentColor = Color.Black
+                ),
+                contentPadding = PaddingValues(
+                    horizontal = 13.dp,
+                    vertical = 8.dp
+                )
+            ) {
+                Text(
+                    "ENTRAR",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 11.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NavigationMenu(
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    val options = listOf("Início", "Biblioteca", "Cloud Gaming", "Perfil")
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .background(Color(0xFF0D140F))
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        options.forEach { option ->
+            TextButton(onClick = { onSelect(option) }) {
+                Text(
+                    option.uppercase(),
+                    color = if (selected == option) Green else Muted,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
     }
+
+    HorizontalDivider(color = Color(0xFF263229))
 }
 
 @Composable
-private fun Sidebar(
+private fun MainContent(
     page: String,
-    tabs: List<String>,
-    onSelect: (String) -> Unit,
-    isTv: Boolean
+    account: String?,
+    notice: String,
+    isTv: Boolean,
+    onLogin: () -> Unit,
+    onLogout: () -> Unit,
+    onNavigate: (String) -> Unit
 ) {
     Column(
-        Modifier
-            .width(if (isTv) 225.dp else 180.dp)
-            .fillMaxHeight()
-            .background(Color(0xFF0C110E))
-            .padding(horizontal = 13.dp, vertical = 23.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(
+                horizontal = if (isTv) 35.dp else 17.dp,
+                vertical = 20.dp
+            ),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        CloudLogo()
-        Spacer(Modifier.height(42.dp))
-
-        tabs.forEach { tab ->
-            var focused by remember { mutableStateOf(false) }
-            val selected = page == tab
-
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 5.dp)
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(
-                        if (selected) Color(0xFF174D23)
-                        else Color.Transparent
-                    )
-                    .border(
-                        width = if (focused) 2.dp else 0.dp,
-                        color = if (focused) Green else Color.Transparent,
-                        shape = RoundedCornerShape(13.dp)
-                    )
-                    .onFocusChanged { focused = it.isFocused }
-                    .clickable { onSelect(tab) }
-                    .focusable()
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    navIcon(tab),
-                    contentDescription = tab,
-                    tint = if (selected) Green else Muted,
-                    modifier = Modifier.size(23.dp)
-                )
-                Spacer(Modifier.width(13.dp))
-                Text(
-                    tab,
-                    color = if (selected) White else Muted,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    fontSize = 13.sp
-                )
-            }
-        }
-
-        Spacer(Modifier.weight(1f))
-
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(Panel, RoundedCornerShape(15.dp))
-                .padding(13.dp)
-        ) {
-            Icon(
-                Icons.Filled.SportsEsports,
-                contentDescription = null,
-                tint = Green,
-                modifier = Modifier.size(30.dp)
+        when (page) {
+            "Início" -> HomeScreen(
+                account = account,
+                isTv = isTv,
+                onLogin = onLogin,
+                onNavigate = onNavigate
             )
-            Spacer(Modifier.height(8.dp))
-            Text("CloudPlay", color = White, fontWeight = FontWeight.Bold)
-            Text(
-                "Sua experiência de jogos na nuvem.",
-                color = Muted,
-                fontSize = 10.sp
+
+            "Biblioteca" -> EmptyScreen(
+                title = "Sua biblioteca",
+                description = "Seus jogos aparecerão aqui quando houver uma conexão de biblioteca disponível.",
+                state = "A biblioteca ainda não está conectada."
+            )
+
+            "Cloud Gaming" -> EmptyScreen(
+                title = "Cloud Gaming",
+                description = "Esta área será usada para acessar sessões de jogos na nuvem.",
+                state = "O serviço de streaming ainda não está conectado."
+            )
+
+            "Perfil" -> ProfileScreen(
+                account = account,
+                notice = notice,
+                onLogin = onLogin,
+                onLogout = onLogout
+            )
+
+            else -> HomeScreen(
+                account = account,
+                isTv = isTv,
+                onLogin = onLogin,
+                onNavigate = onNavigate
             )
         }
     }
 }
 
 @Composable
-private fun MainContent(
-    page: String,
-    notice: String,
+private fun HomeScreen(
     account: String?,
     isTv: Boolean,
     onLogin: () -> Unit,
-    onLogout: () -> Unit,
-    onExplore: () -> Unit,
-    onLibrary: () -> Unit
+    onNavigate: (String) -> Unit
 ) {
     Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(
-                horizontal = if (isTv) 25.dp else 15.dp,
-                vertical = 12.dp
-            ),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(25.dp)
     ) {
-        when (page) {
-            "Início" -> HomeScreen(
-                isTv, account, onLogin, onExplore, onLibrary
+        HeroBanner(
+            account = account,
+            isTv = isTv,
+            onLogin = onLogin
+        )
+
+        GameSection(
+            title = "JOGOS EM DESTAQUE",
+            games = games,
+            isTv = isTv
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "EXPLORE O CLOUDPLAY",
+                color = White,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Black
             )
 
-            "Biblioteca" -> EmptyScreen(
-                "Minha biblioteca",
-                "Seus jogos aparecerão aqui quando uma fonte autorizada de dados estiver conectada.",
-                "Biblioteca ainda não conectada"
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ActionCard(
+                    title = "BIBLIOTECA",
+                    subtitle = "Seus jogos",
+                    modifier = Modifier.weight(1f),
+                    onClick = { onNavigate("Biblioteca") }
+                )
 
-            "Explorar", "Pesquisar" -> EmptyScreen(
-                "Explorar jogos",
-                "O catálogo será conectado em uma próxima etapa.",
-                "Catálogo ainda não conectado"
-            )
-
-            "Game Pass" -> EmptyScreen(
-                "Game Pass",
-                "Esta área poderá mostrar informações disponíveis por integrações autorizadas.",
-                "Serviço ainda não conectado"
-            )
-
-            "Perfil" -> ProfileScreen(
-                account = account,
-                onLogin = onLogin,
-                onLogout = onLogout
-            )
-
-            else -> EmptyScreen(
-                "Configurações",
-                "As configurações do CloudPlay serão adicionadas aqui.",
-                "Em desenvolvimento"
-            )
+                ActionCard(
+                    title = "CLOUD GAMING",
+                    subtitle = "Jogar na nuvem",
+                    modifier = Modifier.weight(1f),
+                    onClick = { onNavigate("Cloud Gaming") }
+                )
+            }
         }
 
-        Text(notice, color = Muted, fontSize = 11.sp)
         Text(
-            "CLOUDPLAY • VERSÃO 0.3.0",
-            color = Color(0xFF536057),
+            "CloudPlay • Projeto em desenvolvimento",
+            color = Muted,
             fontSize = 10.sp
         )
     }
 }
 
 @Composable
-private fun HomeScreen(
-    isTv: Boolean,
-    account: String?,
-    onLogin: () -> Unit,
-    onExplore: () -> Unit,
-    onLibrary: () -> Unit
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(21.dp)
-    ) {
-        HeroBanner(isTv, onLogin)
-
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    "Sua experiência começa aqui",
-                    color = White,
-                    fontSize = if (isTv) 25.sp else 20.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                Text(
-                    "Descubra o universo CloudPlay",
-                    color = Muted,
-                    fontSize = 12.sp
-                )
-            }
-            Icon(
-                Icons.Filled.SportsEsports,
-                contentDescription = null,
-                tint = Green,
-                modifier = Modifier.size(30.dp)
-            )
-        }
-
-        GameSection("Jogos em destaque", games, isTv)
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ActionCard(
-                "Minha biblioteca",
-                "Seus jogos conectados",
-                Modifier.weight(1f),
-                onLibrary
-            )
-            ActionCard(
-                "Explorar",
-                "Descubra mais",
-                Modifier.weight(1f),
-                onExplore
-            )
-        }
-
-        Surface(
-            color = Panel,
-            shape = RoundedCornerShape(17.dp)
-        ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onLogin)
-                    .padding(17.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Filled.AccountCircle,
-                    contentDescription = null,
-                    tint = Green,
-                    modifier = Modifier.size(36.dp)
-                )
-                Spacer(Modifier.width(12.dp))
-
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Conta Microsoft",
-                        color = White,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        account ?: "Conecte sua conta Microsoft",
-                        color = Muted,
-                        fontSize = 11.sp
-                    )
-                }
-
-                Icon(
-                    Icons.Filled.ChevronRight,
-                    contentDescription = null,
-                    tint = Green
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProfileScreen(
-    account: String?,
-    onLogin: () -> Unit,
-    onLogout: () -> Unit
-) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(Panel, RoundedCornerShape(18.dp))
-            .padding(23.dp),
-        verticalArrangement = Arrangement.spacedBy(15.dp)
-    ) {
-        Icon(
-            Icons.Filled.AccountCircle,
-            contentDescription = null,
-            tint = Green,
-            modifier = Modifier.size(55.dp)
-        )
-
-        Text(
-            "Seu perfil",
-            color = White,
-            fontSize = 25.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        if (account != null) {
-            Text("Conta conectada", color = Green, fontWeight = FontWeight.Bold)
-            Text(account, color = White, fontSize = 14.sp)
-
-            Button(
-                onClick = onLogout,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF8B2525),
-                    contentColor = White
-                )
-            ) {
-                Icon(Icons.Filled.Logout, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("SAIR DA CONTA")
-            }
-        } else {
-            Text(
-                "Nenhuma conta Microsoft conectada.",
-                color = Muted
-            )
-
-            Button(
-                onClick = onLogin,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Green,
-                    contentColor = Color.Black
-                )
-            ) {
-                Text("ENTRAR COM MICROSOFT")
-            }
-        }
-    }
-}
-
-@Composable
 private fun HeroBanner(
+    account: String?,
     isTv: Boolean,
     onLogin: () -> Unit
 ) {
-    Box(
-        Modifier
+    Column(
+        modifier = Modifier
             .fillMaxWidth()
-            .height(if (isTv) 285.dp else 250.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(
                 Brush.linearGradient(
                     listOf(
-                        Color(0xFF063D19),
-                        Color(0xFF10291A),
-                        Color(0xFF080F0B),
-                        Color(0xFF15251B)
+                        Color(0xFF1D3824),
+                        Color(0xFF101B13),
+                        Color(0xFF111827)
                     )
                 )
             )
-            .border(1.dp, Color(0xFF285D32), RoundedCornerShape(20.dp))
-            .padding(if (isTv) 30.dp else 20.dp)
+            .border(
+                1.dp,
+                Color(0xFF34533A),
+                RoundedCornerShape(22.dp)
+            )
+            .padding(if (isTv) 35.dp else 22.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp)
     ) {
-        Icon(
-            Icons.Filled.CloudQueue,
-            contentDescription = null,
-            tint = Color(0x3325F34A),
-            modifier = Modifier
-                .size(if (isTv) 260.dp else 180.dp)
-                .align(Alignment.CenterEnd)
+        Text(
+            "SUA PRÓXIMA AVENTURA COMEÇA AQUI",
+            color = Green,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Black
         )
 
-        Column(
-            Modifier.align(Alignment.CenterStart),
-            verticalArrangement = Arrangement.spacedBy(11.dp)
-        ) {
-            Text(
-                "BEM-VINDO AO CLOUDPLAY",
-                color = Green,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
-                letterSpacing = 1.5.sp
-            )
-            Text(
-                "Seus jogos.\nSeu universo.",
-                color = White,
-                fontWeight = FontWeight.Black,
-                fontSize = if (isTv) 39.sp else 31.sp,
-                lineHeight = if (isTv) 44.sp else 35.sp
-            )
-            Text(
-                "Uma nova experiência de jogos na nuvem.",
-                color = Color(0xFFD0DDD2),
-                fontSize = if (isTv) 14.sp else 11.sp
-            )
-                        Button(
+        Text(
+            "Seus jogos.\nSeu universo.",
+            color = White,
+            fontWeight = FontWeight.Black,
+            fontSize = if (isTv) 39.sp else 31.sp,
+            lineHeight = if (isTv) 44.sp else 35.sp
+        )
+
+        Text(
+            "Uma nova experiência de jogos na nuvem.",
+            color = Color(0xFFD0DDD2),
+            fontSize = if (isTv) 14.sp else 11.sp
+        )
+
+        if (account == null) {
+            Button(
                 onClick = onLogin,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Green,
@@ -646,17 +412,27 @@ private fun HeroBanner(
                     "COMEÇAR",
                     fontWeight = FontWeight.Black
                 )
-                        }
+            }
+        } else {
+            Text(
+                "Conectado como $account",
+                color = Green,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp
+            )
+        }
+    }
+}
 
 @Composable
 private fun GameSection(
     title: String,
-    items: List<GameItem>,
+    games: List<GameItem>,
     isTv: Boolean
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
-            Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -667,7 +443,9 @@ private fun GameSection(
                         .height(25.dp)
                         .background(Green, RoundedCornerShape(5.dp))
                 )
+
                 Spacer(Modifier.width(10.dp))
+
                 Text(
                     title,
                     color = White,
@@ -675,22 +453,25 @@ private fun GameSection(
                     fontWeight = FontWeight.Bold
                 )
             }
+
             Text(
-                "VER TODOS  →",
+                "DESTAQUES",
                 color = Green,
-                fontSize = 10.sp,
+                fontSize = 9.sp,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(items) { game ->
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(games) { game ->
                 GameCard(game, isTv)
             }
         }
 
         Text(
-            "Vitrine demonstrativa • jogos não conectados à biblioteca",
+            "Vitrine demonstrativa • jogos ainda não conectados",
             color = Color(0xFF657168),
             fontSize = 9.sp
         )
@@ -702,23 +483,22 @@ private fun GameCard(
     game: GameItem,
     isTv: Boolean
 ) {
-    var focused by remember { mutableStateOf(false) }
-
     Column(
-        Modifier
-            .width(if (isTv) 185.dp else 145.dp)
-            .onFocusChanged { focused = it.isFocused }
-            .focusable()
+        modifier = Modifier.width(if (isTv) 185.dp else 145.dp)
     ) {
         Box(
-            Modifier
+            modifier = Modifier
                 .fillMaxWidth()
                 .height(if (isTv) 220.dp else 175.dp)
                 .clip(RoundedCornerShape(13.dp))
-                .background(Brush.linearGradient(listOf(game.start, game.end)))
+                .background(
+                    Brush.linearGradient(
+                        listOf(game.start, game.end)
+                    )
+                )
                 .border(
-                    if (focused) 3.dp else 1.dp,
-                    if (focused) Green else Color(0xFF39443B),
+                    1.dp,
+                    Color(0xFF39443B),
                     RoundedCornerShape(13.dp)
                 )
                 .padding(12.dp)
@@ -731,6 +511,7 @@ private fun GameCard(
                     .size(55.dp)
                     .align(Alignment.Center)
             )
+
             Text(
                 game.name,
                 color = White,
@@ -763,7 +544,7 @@ private fun ActionCard(
         shape = RoundedCornerShape(15.dp)
     ) {
         Column(
-            Modifier.padding(15.dp),
+            modifier = Modifier.padding(15.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             Icon(
@@ -772,14 +553,90 @@ private fun ActionCard(
                 tint = Green,
                 modifier = Modifier.size(27.dp)
             )
+
             Text(
                 title,
                 color = White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp
             )
-            Text(subtitle, color = Muted, fontSize = 10.sp)
+
+            Text(
+                subtitle,
+                color = Muted,
+                fontSize = 10.sp
+            )
         }
+    }
+}
+
+@Composable
+private fun ProfileScreen(
+    account: String?,
+    notice: String,
+    onLogin: () -> Unit,
+    onLogout: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Panel, RoundedCornerShape(18.dp))
+            .padding(23.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Icon(
+            Icons.Filled.Person,
+            contentDescription = null,
+            tint = Green,
+            modifier = Modifier.size(42.dp)
+        )
+
+        Text(
+            "Sua conta",
+            color = White,
+            fontSize = 25.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        if (account == null) {
+            Text(
+                "Entre com sua conta Microsoft para identificar seu perfil.",
+                color = Muted,
+                fontSize = 13.sp
+            )
+
+            Button(
+                onClick = onLogin,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Green,
+                    contentColor = Color.Black
+                )
+            ) {
+                Text("ENTRAR COM MICROSOFT")
+            }
+        } else {
+            Text(
+                account,
+                color = Green,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            OutlinedButton(onClick = onLogout) {
+                Text(
+                    "SAIR DA CONTA",
+                    color = White
+                )
+            }
+        }
+
+        HorizontalDivider(color = Color(0xFF303B32))
+
+        Text(
+            notice,
+            color = Muted,
+            fontSize = 12.sp
+        )
     }
 }
 
@@ -790,7 +647,7 @@ private fun EmptyScreen(
     state: String
 ) {
     Column(
-        Modifier
+        modifier = Modifier
             .fillMaxWidth()
             .background(Panel, RoundedCornerShape(18.dp))
             .padding(23.dp),
@@ -802,14 +659,22 @@ private fun EmptyScreen(
             tint = Green,
             modifier = Modifier.size(42.dp)
         )
+
         Text(
             title,
             color = White,
             fontSize = 25.sp,
             fontWeight = FontWeight.Bold
         )
-        Text(description, color = Muted, fontSize = 13.sp)
+
+        Text(
+            description,
+            color = Muted,
+            fontSize = 13.sp
+        )
+
         HorizontalDivider(color = Color(0xFF303B32))
+
         Text(
             state,
             color = Color(0xFFFFD27A),
