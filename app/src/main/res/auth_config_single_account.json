@@ -1,0 +1,17 @@
+
+{
+  "client_id": "27239e2d-2a56-45ad-b27b-c7bd6293b215",
+  "authorization_user_agent": "WEBVIEW",
+  "redirect_uri": "msauth://com.cloudplay.app/DtQuXucYhhudNaIP9tJG2ySmySA%3D",
+  "broker_redirect_uri_registered": false,
+  "account_mode": "SINGLE",
+  "authorities": [
+    {
+      "type": "AAD",
+      "audience": {
+        "type": "AzureADandPersonalMicrosoftAccount",
+        "tenant_id": "common"
+      }
+    }
+  ]
+}
