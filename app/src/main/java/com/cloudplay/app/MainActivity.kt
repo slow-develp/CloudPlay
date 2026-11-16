@@ -334,7 +334,7 @@ private fun CloudLogo() {
     ) {
         Image(
             painter = androidx.compose.ui.res.painterResource(
-                id = R.drawable.cloudplay_icon
+                id = R.drawable.cloudplay_logo
             ),
             contentDescription = "CloudPlay",
             modifier = Modifier
