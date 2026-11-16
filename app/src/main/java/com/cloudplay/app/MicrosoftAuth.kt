@@ -2,19 +2,25 @@
 package com.cloudplay.app
 
 import android.app.Activity
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import com.microsoft.identity.client.AuthenticationCallback
 import com.microsoft.identity.client.IAuthenticationResult
 import com.microsoft.identity.client.ISingleAccountPublicClientApplication
 import com.microsoft.identity.client.IPublicClientApplication
 import com.microsoft.identity.client.PublicClientApplication
 import com.microsoft.identity.client.SignInParameters
+import com.microsoft.identity.client.SilentAuthenticationCallback
 import com.microsoft.identity.client.exception.MsalException
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MicrosoftAuth(
     private val activity: Activity,
     private val onSignedIn: (String) -> Unit,
     private val onSignedOut: () -> Unit,
-    private val onMessage: (String) -> Unit
+    private val onMessage: (String) -> Unit,
+    private val onPhotoLoaded: (Bitmap?) -> Unit = {}
 ) {
 
     private var application:
@@ -60,11 +66,13 @@ class MicrosoftAuth(
                 override fun onSuccess(
                     result: IAuthenticationResult
                 ) {
-                    val username = result.account.username
-                        ?: "Conta Microsoft"
+                    val username =
+                        result.account.username ?: "Conta Microsoft"
 
                     onSignedIn(username)
                     onMessage("Login realizado com sucesso!")
+
+                    downloadProfilePhoto(result.accessToken)
                 }
 
                 override fun onError(exception: MsalException) {
@@ -96,6 +104,7 @@ class MicrosoftAuth(
 
                 override fun onSignOut() {
                     onSignedOut()
+                    onPhotoLoaded(null)
                     onMessage("Você saiu da conta Microsoft.")
                 }
 
@@ -120,6 +129,10 @@ class MicrosoftAuth(
                         onSignedIn(
                             activeAccount.username ?: "Conta Microsoft"
                         )
+
+                        loadPhotoSilently(activeAccount.authority)
+                    } else {
+                        onPhotoLoaded(null)
                     }
                 }
 
@@ -129,10 +142,13 @@ class MicrosoftAuth(
                 ) {
                     if (currentAccount == null) {
                         onSignedOut()
+                        onPhotoLoaded(null)
                     } else {
                         onSignedIn(
                             currentAccount.username ?: "Conta Microsoft"
                         )
+
+                        loadPhotoSilently(currentAccount.authority)
                     }
                 }
 
@@ -143,5 +159,63 @@ class MicrosoftAuth(
                 }
             }
         )
+    }
+
+    private fun loadPhotoSilently(authority: String) {
+        application?.acquireTokenSilentAsync(
+            arrayOf("User.Read"),
+            authority,
+            object : SilentAuthenticationCallback {
+
+                override fun onSuccess(
+                    result: IAuthenticationResult
+                ) {
+                    downloadProfilePhoto(result.accessToken)
+                }
+
+                override fun onError(exception: MsalException) {
+                    activity.runOnUiThread {
+                        onMessage(
+                            "Não foi possível atualizar a foto Microsoft."
+                        )
+                    }
+                }
+            }
+        )
+    }
+
+    private fun downloadProfilePhoto(accessToken: String) {
+        Thread {
+            var bitmap: Bitmap? = null
+            var connection: HttpURLConnection? = null
+
+            try {
+                connection = URL(
+                    "https://graph.microsoft.com/v1.0/me/photo/\$value"
+                ).openConnection() as HttpURLConnection
+
+                connection.requestMethod = "GET"
+                connection.setRequestProperty(
+                    "Authorization",
+                    "Bearer $accessToken"
+                )
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+
+                if (connection.responseCode == 200) {
+                    connection.inputStream.use { stream ->
+                        bitmap = BitmapFactory.decodeStream(stream)
+                    }
+                }
+            } catch (exception: Exception) {
+                bitmap = null
+            } finally {
+                connection?.disconnect()
+            }
+
+            activity.runOnUiThread {
+                onPhotoLoaded(bitmap)
+            }
+        }.start()
     }
 }
