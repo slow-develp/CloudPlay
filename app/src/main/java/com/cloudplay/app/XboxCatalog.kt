@@ -12,7 +12,11 @@ data class XboxGame(
     val productId: String,
     val title: String,
     val imageUrl: String,
-    val description: String
+    val description: String,
+    val bannerUrl: String = "",
+    val developer: String = "",
+    val publisher: String = "",
+    val genre: String = ""
 )
 
 object XboxCatalog {
@@ -195,39 +199,79 @@ object XboxCatalog {
                 .ifBlank { localized.optString("ShortDescription") }
                 .ifBlank { "Explore este jogo no catálogo Xbox." }
 
+            val images = findImages(localized)
+            val properties = product.optJSONObject("Properties")
+            val attributes = properties?.optJSONArray("Attributes")
+            val genreNames = mutableListOf<String>()
+
+            if (attributes != null) {
+                for (attributeIndex in 0 until attributes.length()) {
+                    val attribute = attributes.optJSONObject(attributeIndex) ?: continue
+                    val name = attribute.optString("Name")
+                    val value = attribute.optString("Value")
+                    val candidate = value.ifBlank { name }
+                    val normalized = candidate.lowercase()
+                    val knownGenre = listOf(
+                        "ação", "aventura", "luta", "corrida", "esporte",
+                        "estratégia", "simulação", "rpg", "tiro", "plataforma",
+                        "puzzle", "terror", "sobrevivência", "música", "família",
+                        "action", "adventure", "fighting", "racing", "sports",
+                        "strategy", "simulation", "role playing", "shooter",
+                        "platformer", "puzzle", "horror", "survival", "music"
+                    ).any { normalized.contains(it) }
+                    if (knownGenre && candidate.isNotBlank() && candidate != "null") {
+                        genreNames.add(candidate)
+                    }
+                }
+            }
+
+            val developer = localized.optString("DeveloperName")
+            val publisher = localized.optString("PublisherName")
+
             result.add(
                 XboxGame(
                     productId = productId,
                     title = title,
-                    imageUrl = findImage(localized),
-                    description = description
+                    imageUrl = images.first,
+                    description = description,
+                    bannerUrl = images.second,
+                    developer = developer.takeUnless { it == "null" } ?: "",
+                    publisher = publisher.takeUnless { it == "null" } ?: "",
+                    genre = genreNames.distinct().take(3).joinToString(" • ")
                 )
             )
         }
         return result.distinctBy { it.productId }
     }
 
-    private fun findImage(localized: JSONObject): String {
-        val images = localized.optJSONArray("Images") ?: return ""
+    private fun findImages(localized: JSONObject): Pair<String, String> {
+        val images = localized.optJSONArray("Images") ?: return Pair("", "")
         var poster = ""
         var boxArt = ""
+        var hero = ""
+        var wideScreenshot = ""
         var fallback = ""
 
         for (i in 0 until images.length()) {
             val image = images.optJSONObject(i) ?: continue
-            val uri = image.optString("Uri")
-                .ifBlank { image.optString("URL") }
-
+            val uri = image.optString("Uri").ifBlank { image.optString("URL") }
             if (uri.isBlank() || uri == "null") continue
 
+            val purpose = image.optString("ImagePurpose")
+            val width = image.optInt("Width")
+            val height = image.optInt("Height")
+
             when {
-                image.optString("ImagePurpose").equals("Poster", true) ->
-                    poster = uri
-                image.optString("ImagePurpose").equals("BoxArt", true) ->
-                    boxArt = uri
+                purpose.equals("Poster", true) -> poster = uri
+                purpose.equals("BoxArt", true) && boxArt.isBlank() -> boxArt = uri
+                purpose.equals("SuperHeroArt", true) || purpose.equals("Hero", true) -> hero = uri
+                purpose.equals("Screenshot", true) && width > height && wideScreenshot.isBlank() -> wideScreenshot = uri
                 fallback.isBlank() -> fallback = uri
             }
         }
-        return poster.ifBlank { boxArt }.ifBlank { fallback }
+
+        val cover = poster.ifBlank { boxArt }.ifBlank { fallback }
+        val banner = hero.ifBlank { wideScreenshot }.ifBlank { cover }
+        return Pair(cover, banner)
     }
 }
