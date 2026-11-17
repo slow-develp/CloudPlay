@@ -21,17 +21,19 @@
         android:theme="@style/Theme.CloudPlay"
         android:usesCleartextTraffic="false">
 
+        <!-- Atividade principal do CloudPlay -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
-            android:launchMode="singleTop"
+            android:exported="true"
+            android:launchMode="singleTop">
 
-            <!-- Inicialização Android e Android TV -->
+            <!-- Inicialização Android -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Inicialização Android TV -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
@@ -69,4 +71,5 @@
         </activity>
 
     </application>
+
 </manifest>
