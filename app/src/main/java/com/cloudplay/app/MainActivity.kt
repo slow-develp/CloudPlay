@@ -1,22 +1,18 @@
 
 package com.cloudplay.app
 
+import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsControllerCompat
-import androidx.compose.foundation.Image
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -24,13 +20,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalConfiguration
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -38,46 +34,48 @@ import java.net.URL
 private const val CLOUDPLAY_API =
     "https://cloudplay-api.jpzinx44.workers.dev"
 
-private val BackgroundColor = Color(0xFF090B10)
-private val SurfaceColor = Color(0xFF151922)
-private val SurfaceLight = Color(0xFF202633)
-private val AccentColor = Color(0xFF35C878)
-private val MainText = Color(0xFFF5F6F8)
-private val SecondaryText = Color(0xFF9AA3B2)
+private val Bg = Color(0xFF080B0A)
+private val Panel = Color(0xFF111714)
+private val Green = Color(0xFF107C10)
+private val BrightGreen = Color(0xFF31D158)
+private val Muted = Color(0xFF9AA69E)
 
 class MainActivity : ComponentActivity() {
 
-    private val xboxSession = mutableStateOf<String?>(null)
-    private val xboxUserHash = mutableStateOf<String?>(null)
-    private val xboxNotice = mutableStateOf("")
+    private var authNotice by mutableStateOf<String?>(null)
+    private var sessionId by mutableStateOf<String?>(null)
+    private var userHash by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        window.navigationBarColor = android.graphics.Color.TRANSPARENT
-
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
-        }
-
-        if (android.os.Build.VERSION.SDK_INT >= 29) {
-            window.isStatusBarContrastEnforced = false
-            window.isNavigationBarContrastEnforced = false
-        }
-
         handleAuthIntent(intent)
 
         setContent {
-            CloudPlayApp(
-                xboxSessionId = xboxSession.value,
-                xboxUserHash = xboxUserHash.value,
-                xboxNotice = xboxNotice.value,
-                onXboxLogin = { startXboxLogin() },
-                onXboxLogout = { disconnectXbox() }
-            )
+            MaterialTheme(
+                colorScheme = darkColorScheme(
+                    primary = BrightGreen,
+                    secondary = Green,
+                    background = Bg,
+                    surface = Panel
+                )
+            ) {
+                CloudPlayApp(
+                    connected = sessionId != null,
+                    userHash = userHash,
+                    notice = authNotice,
+                    onLogin = { startXboxLogin() },
+                    onLogout = {
+                        sessionId = null
+                        userHash = null
+                        authNotice =
+                            "Sessão desconectada deste dispositivo."
+                    },
+                    onDismissNotice = {
+                        authNotice = null
+                    }
+                )
+            }
         }
     }
 
@@ -88,36 +86,39 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startXboxLogin() {
-        try {
-            val intent = Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse("$CLOUDPLAY_API/auth/start")
+        runCatching {
+            startActivity(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("$CLOUDPLAY_API/auth/start")
+                )
             )
-            startActivity(intent)
-        } catch (error: Exception) {
-            xboxNotice.value =
-                "Não foi possível abrir o login Microsoft."
+        }.onFailure {
+            authNotice =
+                "Não foi possível abrir a autenticação Microsoft."
         }
     }
 
     private fun handleAuthIntent(intent: Intent?) {
-        val handoff = intent?.data?.getQueryParameter("handoff")
-            ?: return
+        val data = intent?.data ?: return
 
-        if (!handoff.matches(Regex("^[a-f0-9]{64}$"))) {
-            xboxNotice.value = "Código de autenticação inválido."
+        if (data.scheme != "cloudplay" || data.host != "auth") {
             return
         }
 
-        xboxNotice.value = "Conectando sua conta Xbox..."
+        val handoff =
+            data.getQueryParameter("handoff") ?: return
+
+        if (!handoff.matches(Regex("^[a-fA-F0-9]{64}$"))) {
+            authNotice = "Código de autenticação inválido."
+            return
+        }
 
         Thread {
-            var connection: HttpURLConnection? = null
-
             try {
-                connection = URL(
-                    "$CLOUDPLAY_API/auth/redeem"
-                ).openConnection() as HttpURLConnection
+                val connection =
+                    URL("$CLOUDPLAY_API/auth/redeem")
+                        .openConnection() as HttpURLConnection
 
                 connection.requestMethod = "POST"
                 connection.connectTimeout = 15000
@@ -129,753 +130,762 @@ class MainActivity : ComponentActivity() {
                     "application/json"
                 )
 
-                val body = JSONObject()
-                    .put("handoff", handoff)
-                    .toString()
-
                 connection.outputStream.use {
-                    it.write(body.toByteArray(Charsets.UTF_8))
+                    it.write(
+                        JSONObject()
+                            .put("handoff", handoff)
+                            .toString()
+                            .toByteArray()
+                    )
                 }
 
                 val responseCode = connection.responseCode
 
-                val responseStream =
+                val stream =
                     if (responseCode in 200..299) {
                         connection.inputStream
                     } else {
                         connection.errorStream
                     }
 
-                val response = responseStream
-                    ?.bufferedReader()
-                    ?.use { it.readText() }
-                    ?: "{}"
+                val body =
+                    stream.bufferedReader().use {
+                        it.readText()
+                    }
 
-                val result = JSONObject(response)
+                val json = JSONObject(body)
 
                 runOnUiThread {
-                    if (responseCode in 200..299 &&
-                        result.optBoolean("success")) {
+                    if (
+                        responseCode in 200..299 &&
+                        json.optBoolean("success", true)
+                    ) {
+                        sessionId =
+                            json.optString("sessionId")
+                                .takeIf { it.isNotBlank() }
 
-                        val sessionId =
-                            result.optString("sessionId")
+                        userHash =
+                            json.optString("userHash")
+                                .takeIf { it.isNotBlank() }
 
-                        if (sessionId.isBlank()) {
-                            xboxNotice.value =
-                                "O servidor não retornou uma sessão válida."
-                        } else {
-                            xboxSession.value = sessionId
-                            xboxUserHash.value =
-                                result.optString("userHash")
-
-                            xboxNotice.value =
-                                "Conta Xbox conectada com sucesso!"
-                        }
-
+                        authNotice =
+                            if (sessionId != null) {
+                                "Sessão vinculada ao CloudPlay."
+                            } else {
+                                "A resposta não trouxe uma sessão válida."
+                            }
                     } else {
-                        xboxNotice.value =
-                            result.optString(
+                        authNotice =
+                            json.optString(
                                 "error",
-                                "Não foi possível conectar ao Xbox."
+                                "Não foi possível concluir o login."
                             )
                     }
                 }
 
-            } catch (error: Exception) {
+                connection.disconnect()
+
+            } catch (_: Exception) {
                 runOnUiThread {
-                    xboxNotice.value =
-                        "Erro ao conectar ao Xbox. Verifique sua internet."
+                    authNotice =
+                        "Falha ao validar o retorno da Microsoft."
                 }
-            } finally {
-                connection?.disconnect()
             }
         }.start()
     }
+}
 
-    private fun disconnectXbox() {
-        // Limpa a sessão mantida na memória deste aplicativo.
-        // A revogação da sessão no servidor será implementada
-        // em uma próxima etapa.
-        xboxSession.value = null
-        xboxUserHash.value = null
-        xboxNotice.value = "Conta desconectada deste aparelho."
-    }
+private enum class Page(val label: String) {
+    HOME("Início"),
+    LIBRARY("Minha Biblioteca"),
+    GAME_PASS("Game Pass"),
+    STORE("Loja"),
+    SEARCH("Pesquisar"),
+    FRIENDS("Amigos"),
+    SETTINGS("Configurações"),
+    PROFILE("Perfil")
 }
 
 @Composable
-fun CloudPlayApp(
-    xboxSessionId: String?,
-    xboxUserHash: String?,
-    xboxNotice: String,
-    onXboxLogin: () -> Unit,
-    onXboxLogout: () -> Unit
+private fun CloudPlayApp(
+    connected: Boolean,
+    userHash: String?,
+    notice: String?,
+    onLogin: () -> Unit,
+    onLogout: () -> Unit,
+    onDismissNotice: () -> Unit
 ) {
-    val configuration = LocalConfiguration.current
-    val isTv = configuration.screenWidthDp >= 700
+    val context = LocalContext.current
 
-    val account = if (xboxSessionId != null) {
-        "Xbox conectado"
-    } else {
-        null
+    val isTv = remember {
+        context.resources.configuration.smallestScreenWidthDp >= 600 ||
+            context.resources.configuration.screenWidthDp >= 700
     }
 
-    var currentPage by remember { mutableStateOf("Início") }
+    var page by remember {
+        mutableStateOf(Page.HOME)
+    }
 
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            background = BackgroundColor,
-            surface = SurfaceColor,
-            primary = AccentColor,
-            onPrimary = Color.Black,
-            onBackground = MainText,
-            onSurface = MainText
-        )
+    var search by remember {
+        mutableStateOf("")
+    }
+
+    var notificationsOpen by remember {
+        mutableStateOf(false)
+    }
+
+    var profileOpen by remember {
+        mutableStateOf(false)
+    }
+
+    BackHandler(
+        page != Page.HOME ||
+            profileOpen ||
+            notificationsOpen
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = BackgroundColor
-        ) {
-            Box(
+        when {
+            notificationsOpen -> notificationsOpen = false
+            profileOpen -> profileOpen = false
+            page != Page.HOME -> page = Page.HOME
+        }
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Bg)
+    ) {
+        if (isTv) {
+            TvShell(
+                page = page,
+                onNavigate = { page = it },
+                connected = connected,
+                onProfile = { profileOpen = true },
+                onNotifications = {
+                    notificationsOpen = true
+                },
+                content = {
+                    PageContent(
+                        page,
+                        search,
+                        { search = it },
+                        connected,
+                        userHash,
+                        onLogin,
+                        onLogout
+                    )
+                }
+            )
+        } else {
+            MobileShell(
+                page = page,
+                onNavigate = { page = it },
+                onProfile = { profileOpen = true },
+                content = {
+                    PageContent(
+                        page,
+                        search,
+                        { search = it },
+                        connected,
+                        userHash,
+                        onLogin,
+                        onLogout
+                    )
+                }
+            )
+        }
+
+        if (notice != null) {
+            Snackbar(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(BackgroundColor)
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp),
+                action = {
+                    TextButton(
+                        onClick = onDismissNotice
+                    ) {
+                        Text("OK", color = BrightGreen)
+                    }
+                }
             ) {
-                if (isTv) {
-                    TvInterface(
-                        page = currentPage,
-                        onPageChange = { currentPage = it },
-                        account = account,
-                        photo = null,
-                        notice = xboxNotice,
-                        userHash = xboxUserHash,
-                        onLogin = onXboxLogin,
-                        onLogout = onXboxLogout
-                    )
-                } else {
-                    MobileInterface(
-                        page = currentPage,
-                        onPageChange = { currentPage = it },
-                        account = account,
-                        photo = null,
-                        notice = xboxNotice,
-                        userHash = xboxUserHash,
-                        onLogin = onXboxLogin,
-                        onLogout = onXboxLogout
-                    )
+                Text(notice)
+            }
+        }
+
+        if (notificationsOpen) {
+            NotificationPanel {
+                notificationsOpen = false
+            }
+        }
+
+        if (profileOpen) {
+            ProfilePanel(
+                connected = connected,
+                userHash = userHash,
+                onLogin = onLogin,
+                onLogout = onLogout,
+                onClose = {
+                    profileOpen = false
                 }
-            }
-        }
-    }
-}
-
-private val menuItems = listOf(
-    "Início",
-    "Minha Biblioteca",
-    "Game Pass",
-    "Pesquisar",
-    "Perfil",
-    "Configurações"
-)
-
-@Composable
-private fun TvInterface(
-    page: String,
-    onPageChange: (String) -> Unit,
-    account: String?,
-    photo: Bitmap?,
-    notice: String,
-    userHash: String?,
-    onLogin: () -> Unit,
-    onLogout: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BackgroundColor)
-    ) {
-        Column(
-            modifier = Modifier
-                .width(230.dp)
-                .fillMaxHeight()
-                .background(Color(0xFF10141C))
-                .padding(20.dp)
-        ) {
-            CloudLogo()
-
-            Spacer(modifier = Modifier.height(35.dp))
-
-            menuItems.forEach { item ->
-                NavigationItem(
-                    title = item,
-                    selected = page == item,
-                    onClick = { onPageChange(item) },
-                    isTv = true
-                )
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Text(
-                text = "CLOUDPLAY",
-                color = SecondaryText,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
             )
-
-            Text(
-                text = "Sua experiência de jogos",
-                color = SecondaryText,
-                fontSize = 10.sp
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 28.dp, vertical = 20.dp)
-        ) {
-            Header(
-                account = account,
-                photo = photo,
-                onProfile = { onPageChange("Perfil") },
-                onLogin = onLogin
-            )
-
-            Spacer(modifier = Modifier.height(22.dp))
-
-            when (page) {
-                "Início" -> HomeScreen(isTv = true)
-
-                "Minha Biblioteca" ->
-                    CatalogPage(title = "Minha Biblioteca")
-
-                "Game Pass" ->
-                    CatalogPage(title = "Game Pass")
-
-                "Pesquisar" -> SearchPage()
-
-                "Perfil" -> ProfileScreen(
-                    account = account,
-                    photo = photo,
-                    notice = notice,
-                    userHash = userHash,
-                    onLogin = onLogin,
-                    onLogout = onLogout
-                )
-
-                "Configurações" -> SettingsPage()
-
-                else -> HomeScreen(isTv = true)
-            }
         }
     }
 }
 
 @Composable
-private fun MobileInterface(
-    page: String,
-    onPageChange: (String) -> Unit,
-    account: String?,
-    photo: Bitmap?,
-    notice: String,
-    userHash: String?,
-    onLogin: () -> Unit,
-    onLogout: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BackgroundColor)
-    ) {
-        Header(
-            account = account,
-            photo = photo,
-            onProfile = { onPageChange("Perfil") },
-            onLogin = onLogin
-        )
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            when (page) {
-                "Início" -> HomeScreen(isTv = false)
-
-                "Minha Biblioteca" ->
-                    CatalogPage(title = "Minha Biblioteca")
-
-                "Game Pass" ->
-                    CatalogPage(title = "Game Pass")
-
-                "Pesquisar" -> SearchPage()
-
-                "Perfil" -> ProfileScreen(
-                    account = account,
-                    photo = photo,
-                    notice = notice,
-                    userHash = userHash,
-                    onLogin = onLogin,
-                    onLogout = onLogout
-                )
-
-                "Configurações" -> SettingsPage()
-
-                else -> HomeScreen(isTv = false)
-            }
-        }
-
-        NavigationBar(
-            containerColor = Color(0xFF11151D),
-            contentColor = MainText
-        ) {
-            val mobileItems = listOf(
-                "Início",
-                "Biblioteca",
-                "Pesquisar",
-                "Perfil",
-                "Config."
-            )
-
-            val icons = listOf(
-                Icons.Default.Home,
-                Icons.Default.SportsEsports,
-                Icons.Default.Search,
-                Icons.Default.Person,
-                Icons.Default.Settings
-            )
-
-            mobileItems.forEachIndexed { index, item ->
-                val destination = when (item) {
-                    "Biblioteca" -> "Minha Biblioteca"
-                    "Config." -> "Configurações"
-                    else -> item
-                }
-
-                NavigationBarItem(
-                    selected = page == destination,
-                    onClick = { onPageChange(destination) },
-                    icon = {
-                        Icon(
-                            imageVector = icons[index],
-                            contentDescription = item
-                        )
-                    },
-                    label = {
-                        Text(item, fontSize = 10.sp)
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.Black,
-                        selectedTextColor = MainText,
-                        indicatorColor = Color.White,
-                        unselectedIconColor = SecondaryText,
-                        unselectedTextColor = SecondaryText
-                    )
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CloudLogo() {
-    val configuration = LocalConfiguration.current
-    val isTv = configuration.screenWidthDp >= 700
-
-    Image(
-        painter = androidx.compose.ui.res.painterResource(
-            id = R.drawable.cloudplay_logo
-        ),
-        contentDescription = "CloudPlay",
-        modifier = Modifier
-            .width(if (isTv) 190.dp else 150.dp)
-            .height(if (isTv) 65.dp else 52.dp),
-        contentScale = androidx.compose.ui.layout.ContentScale.Fit
-    )
-}
-
-@Composable
-private fun Header(
-    account: String?,
-    photo: Bitmap?,
+private fun TvShell(
+    page: Page,
+    onNavigate: (Page) -> Unit,
+    connected: Boolean,
     onProfile: () -> Unit,
-    onLogin: () -> Unit
+    onNotifications: () -> Unit,
+    content: @Composable () -> Unit
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        Modifier
+            .fillMaxSize()
+            .background(Bg)
     ) {
-        CloudLogo()
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        if (account != null) {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(30.dp))
-                    .clickable { onProfile() }
-                    .background(SurfaceColor)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+        Column(
+            Modifier
+                .width(204.dp)
+                .fillMaxHeight()
+                .background(Color(0xFF050806))
+                .padding(horizontal = 14.dp, vertical = 22.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                ProfileAvatar(photo, 34.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(
+                        start = 8.dp,
+                        bottom = 20.dp
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Cloud,
+                        null,
+                        tint = BrightGreen,
+                        modifier = Modifier.size(29.dp)
+                    )
 
-                Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(Modifier.width(9.dp))
+
+                    Text(
+                        "CLOUDPLAY",
+                        color = Color.White,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 18.sp
+                    )
+                }
+
+                listOf(
+                    Page.HOME,
+                    Page.LIBRARY,
+                    Page.GAME_PASS,
+                    Page.STORE,
+                    Page.FRIENDS,
+                    Page.SETTINGS
+                ).forEach {
+                    TvNavItem(
+                        it,
+                        page == it
+                    ) {
+                        onNavigate(it)
+                    }
+                }
+            }
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    color = Color(0xFF14251A),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(
+                            "XBOX",
+                            color = BrightGreen,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 13.sp
+                        )
+
+                        Text(
+                            "Game Pass",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+
+                        Text(
+                            "Descubra jogos",
+                            color = Muted,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
 
                 Text(
-                    text = account,
-                    color = MainText,
-                    fontSize = 12.sp
+                    "CLOUDPLAY • BETA",
+                    color = Muted,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(start = 8.dp)
                 )
             }
-        } else {
-            Button(
-                onClick = onLogin,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AccentColor,
-                    contentColor = Color.Black
-                )
+        }
+
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 30.dp, vertical = 18.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Entrar")
+                Text(
+                    page.label,
+                    color = Color.White,
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+
+                IconButton(
+                    onClick = {
+                        onNavigate(Page.SEARCH)
+                    }
+                ) {
+                    Icon(
+                        Icons.Default.Search,
+                        "Pesquisar",
+                        tint = Color.White,
+                        modifier = Modifier.size(25.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = onNotifications
+                ) {
+                    Icon(
+                        Icons.Default.NotificationsNone,
+                        "Notificações",
+                        tint = Color.White,
+                        modifier = Modifier.size(25.dp)
+                    )
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                Surface(
+                    color = Panel,
+                    shape = RoundedCornerShape(30.dp),
+                    modifier = Modifier
+                        .clickable { onProfile() }
+                        .focusable()
+                ) {
+                    Row(
+                        Modifier.padding(
+                            horizontal = 14.dp,
+                            vertical = 9.dp
+                        ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.AccountCircle,
+                            null,
+                            tint = BrightGreen
+                        )
+
+                        Spacer(Modifier.width(8.dp))
+
+                        Text(
+                            if (connected) "Conta conectada" else "Entrar",
+                            color = Color.White,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Box(Modifier.fillMaxSize()) {
+                content()
             }
         }
     }
 }
 
 @Composable
-private fun NavigationItem(
-    title: String,
+private fun TvNavItem(
+    page: Page,
     selected: Boolean,
-    onClick: () -> Unit,
-    isTv: Boolean
+    onClick: () -> Unit
 ) {
-    val icon = when (title) {
-        "Início" -> Icons.Default.Home
-        "Minha Biblioteca" -> Icons.Default.SportsEsports
-        "Game Pass" -> Icons.Default.Cloud
-        "Pesquisar" -> Icons.Default.Search
-        "Perfil" -> Icons.Default.Person
-        else -> Icons.Default.Settings
+    var focused by remember {
+        mutableStateOf(false)
     }
 
     Row(
-        modifier = Modifier
+        Modifier
             .fillMaxWidth()
-            .padding(vertical = 5.dp)
-            .clip(RoundedCornerShape(12.dp))
             .background(
-                if (selected) Color.White else Color.Transparent
+                if (selected || focused)
+                    Color(0xFF17351F)
+                else
+                    Color.Transparent,
+                RoundedCornerShape(12.dp)
             )
-            .border(
-                width = if (selected) 1.dp else 0.dp,
-                color = if (selected) Color.White else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable { onClick() }
-            .then(if (isTv) Modifier.focusable() else Modifier)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
+            .onFocusChanged {
+                focused = it.isFocused
+            }
+            .clickable(onClick = onClick)
+            .focusable()
+            .padding(
+                horizontal = 13.dp,
+                vertical = 13.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val icon = when (page) {
+            Page.HOME -> Icons.Default.Home
+            Page.LIBRARY -> Icons.Default.VideogameAsset
+            Page.GAME_PASS -> Icons.Default.SportsEsports
+            Page.STORE -> Icons.Default.Storefront
+            Page.FRIENDS -> Icons.Default.People
+            else -> Icons.Default.Settings
+        }
+
         Icon(
-            imageVector = icon,
-            contentDescription = title,
-            tint = if (selected) Color.Black else SecondaryText
+            icon,
+            null,
+            tint = if (selected || focused)
+                BrightGreen
+            else
+                Muted,
+            modifier = Modifier.size(20.dp)
         )
 
-        Spacer(modifier = Modifier.width(13.dp))
+        Spacer(Modifier.width(12.dp))
 
         Text(
-            text = title,
-            color = if (selected) Color.Black else MainText,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            page.label,
+            color = if (selected || focused)
+                Color.White
+            else
+                Muted,
+            fontWeight = if (selected || focused)
+                FontWeight.Bold
+            else
+                FontWeight.Normal,
             fontSize = 13.sp
         )
     }
 }
 
 @Composable
-private fun HomeScreen(isTv: Boolean) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            bottom = 25.dp,
-            top = 8.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+private fun MobileShell(
+    page: Page,
+    onNavigate: (Page) -> Unit,
+    onProfile: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Bg)
     ) {
-        item {
-            HeroBanner(isTv)
-        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Cloud,
+                null,
+                tint = BrightGreen,
+                modifier = Modifier.size(26.dp)
+            )
 
-        item {
-            Column {
-                Text(
-                    text = "Explore o CloudPlay",
-                    color = MainText,
-                    fontSize = if (isTv) 24.sp else 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
+            Spacer(Modifier.width(8.dp))
 
-                Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "CLOUDPLAY",
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+                modifier = Modifier.weight(1f)
+            )
 
-                Text(
-                    text = "Descubra jogos e acesse seu catálogo.",
-                    color = SecondaryText,
-                    fontSize = 13.sp
+            IconButton(onClick = onProfile) {
+                Icon(
+                    Icons.Default.AccountCircle,
+                    "Perfil",
+                    tint = Color.White
                 )
             }
         }
 
-        item {
-            Text(
-                text = "Catálogo Xbox",
-                color = MainText,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            XboxCatalogScreen()
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
+            content()
         }
 
-        item {
-            ActionCard(
-                title = "Sua biblioteca",
-                description = "Acesse seus jogos e conteúdos.",
-                icon = Icons.Default.SportsEsports
-            )
-        }
-    }
-}
+        NavigationBar(
+            containerColor = Color(0xFF090E0B)
+        ) {
+            listOf(
+                Page.HOME,
+                Page.LIBRARY,
+                Page.SEARCH,
+                Page.FRIENDS,
+                Page.SETTINGS
+            ).forEach { item ->
 
-@Composable
-private fun HeroBanner(isTv: Boolean) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(if (isTv) 250.dp else 190.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                androidx.compose.ui.graphics.Brush.linearGradient(
-                    colors = listOf(
-                        Color(0xFF202D3D),
-                        Color(0xFF10151E),
-                        Color(0xFF17251F)
+                NavigationBarItem(
+                    selected = page == item,
+                    onClick = {
+                        onNavigate(item)
+                    },
+                    icon = {
+                        Icon(
+                            when (item) {
+                                Page.HOME -> Icons.Default.Home
+                                Page.LIBRARY -> Icons.Default.VideogameAsset
+                                Page.SEARCH -> Icons.Default.Search
+                                Page.FRIENDS -> Icons.Default.People
+                                else -> Icons.Default.Settings
+                            },
+                            null
+                        )
+                    },
+                    label = {
+                        Text(
+                            when (item) {
+                                Page.HOME -> "Início"
+                                Page.LIBRARY -> "Biblioteca"
+                                Page.SEARCH -> "Buscar"
+                                Page.FRIENDS -> "Amigos"
+                                else -> "Config."
+                            }
+                        )
+                    },
+    
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = BrightGreen,
+                        indicatorColor = Color(0xFF17351F),
+                        selectedTextColor = BrightGreen
                     )
                 )
-            )
-            .padding(22.dp),
-        contentAlignment = Alignment.CenterStart
+            }
+        }
+    }
+}
+
+@Composable
+private fun PageContent(
+    page: Page,
+    search: String,
+    onSearch: (String) -> Unit,
+    connected: Boolean,
+    userHash: String?,
+    onLogin: () -> Unit,
+    onLogout: () -> Unit
+) {
+    when (page) {
+        Page.HOME -> HomePage()
+
+        Page.LIBRARY -> CatalogPage(
+            "Sua biblioteca",
+            "O catálogo Xbox em nuvem aparece abaixo. A biblioteca pessoal ainda depende da integração oficial."
+        )
+
+        Page.GAME_PASS -> GamePassPage()
+
+        Page.STORE -> StorePage()
+
+        Page.SEARCH -> SearchPage(
+            search,
+            onSearch
+        )
+
+        Page.FRIENDS -> FriendsPage()
+
+        Page.SETTINGS -> SettingsPage()
+
+        Page.PROFILE -> ProfilePanel(
+            connected,
+            userHash,
+            onLogin,
+            onLogout
+        ) {}
+    }
+}
+
+@Composable
+private fun HomePage() {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+        contentPadding = PaddingValues(bottom = 28.dp)
     ) {
-        Column(
-            modifier = Modifier
-    .fillMaxWidth(0.85f),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = "CLOUD GAMING",
-                color = AccentColor,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp
-            )
+        item {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                Color(0xFF163B22),
+                                Color(0xFF0D1711),
+                                Color(0xFF101412)
+                            )
+                        ),
+                        RoundedCornerShape(22.dp)
+                    )
+                    .padding(24.dp),
+                contentAlignment = Alignment.BottomStart
+            ) {
+                Column {
+                    Text(
+                        "JOGUE NA NUVEM",
+                        color = BrightGreen,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
 
-            Text(
-                text = "SEUS JOGOS.\nSUA NUVEM.",
-                color = Color.White,
-                fontSize = if (isTv) 32.sp else 25.sp,
-                fontWeight = FontWeight.ExtraBold,
-                lineHeight = if (isTv) 37.sp else 30.sp
-            )
+                    Text(
+                        "Seus jogos.\nSua nuvem.",
+                        color = Color.White,
+                        fontSize = 30.sp,
+                        lineHeight = 34.sp,
+                        fontWeight = FontWeight.Black
+                    )
 
-            Text(
-                text = "Bem-vindo ao CloudPlay.",
-                color = Color.LightGray,
-                fontSize = 12.sp
+                    Text(
+                        "Explore o catálogo disponível para jogar.",
+                        color = Color.LightGray,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+
+        item {
+            CatalogPage(
+                "Adicionados recentemente",
+                "Jogos identificados no catálogo público Xbox."
             )
         }
     }
 }
 
 @Composable
-private fun CatalogPage(title: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(12.dp)
-    ) {
+private fun CatalogPage(
+    title: String,
+    subtitle: String
+) {
+    Column(Modifier.fillMaxSize()) {
         Text(
-            text = title,
-            color = MainText,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
+            title,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 21.sp
         )
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(Modifier.height(5.dp))
+
+        Text(
+            subtitle,
+            color = Muted,
+            fontSize = 12.sp
+        )
+
+        Spacer(Modifier.height(14.dp))
 
         XboxCatalogScreen()
     }
 }
 
 @Composable
-private fun SearchPage() {
-    var query by remember { mutableStateOf("") }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(18.dp)
-    ) {
-        Text(
-            text = "Pesquisar",
-            color = MainText,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
+private fun SearchPage(
+    query: String,
+    onSearch: (String) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = query,
-            onValueChange = { query = it },
+            onValueChange = onSearch,
             modifier = Modifier.fillMaxWidth(),
             placeholder = {
-                Text("Pesquisar jogos...")
+                Text("Pesquisar jogos")
             },
             leadingIcon = {
-                Icon(
-                    Icons.Default.Search,
-                    contentDescription = "Pesquisar"
-                )
+                Icon(Icons.Default.Search, null)
             },
-            singleLine = true
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = BrightGreen,
+                cursorColor = BrightGreen,
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White
+            )
         )
 
-        XboxCatalogSearchScreen(query = query)
+        Spacer(Modifier.height(14.dp))
+
+        XboxCatalogSearchScreen(query)
     }
 }
 
 @Composable
-private fun ProfileScreen(
-    account: String?,
-    photo: Bitmap?,
-    notice: String,
-    userHash: String?,
-    onLogin: () -> Unit,
-    onLogout: () -> Unit
-) {
+private fun GamePassPage() {
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(20.dp),
-        contentPadding = PaddingValues(bottom = 30.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(bottom = 30.dp)
     ) {
         item {
             Text(
-                text = "Perfil Xbox",
-                color = MainText,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold
+                "Xbox Game Pass",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black
             )
 
             Text(
-                text = "Sua identidade e atividade no Xbox",
-                color = SecondaryText,
+                "Consulte os planos e benefícios diretamente na página oficial. Preços e disponibilidade podem mudar.",
+                color = Muted,
                 fontSize = 13.sp
             )
         }
 
         item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(SurfaceColor)
-                    .padding(22.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            InfoCard(
+                "Planos e preços",
+                "Veja os planos disponíveis no Brasil, benefícios e condições atualizadas."
             ) {
-                ProfileAvatar(photo, 100.dp)
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = if (account != null)
-                        "Xbox conectado"
-                    else
-                        "Perfil Xbox",
-                    color = MainText,
-                    fontSize = 21.sp,
-                    fontWeight = FontWeight.Bold
+                OpenOfficial(
+                    "https://www.xbox.com/pt-BR/xbox-game-pass"
                 )
+            }
+        }
 
-                Text(
-                    text = if (account != null)
-                        "Sua conta está conectada ao CloudPlay"
-                    else
-                        "Conecte sua conta Microsoft",
-                    color = SecondaryText,
-                    fontSize = 13.sp
-                )
-
-                if (userHash != null) {
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(
-                        text = "Identificador Xbox: $userHash",
-                        color = SecondaryText,
-                        fontSize = 11.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(22.dp))
-
-                if (account == null) {
-                    Button(
-                        onClick = onLogin,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AccentColor,
-                            contentColor = Color.Black
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.Login,
-                            contentDescription = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Conectar Xbox")
-                    }
-                } else {
-                    OutlinedButton(onClick = onLogout) {
-                        Icon(
-                            Icons.Default.Logout,
-                            contentDescription = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Desconectar")
-                    }
-                }
-
-                if (notice.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = notice,
-                        color = SecondaryText,
-                        fontSize = 12.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(25.dp))
-
-                ActionCard(
-                    title = "Estatísticas Xbox",
-                    description = "Gamertag, conquistas e pontuação serão carregados em uma próxima integração.",
-                    icon = Icons.Default.EmojiEvents
+        item {
+            InfoCard(
+                "Catálogo de jogos",
+                "Explore os jogos incluídos nos diferentes planos."
+            ) {
+                OpenOfficial(
+                    "https://www.xbox.com/pt-BR/xbox-game-pass/games"
                 )
             }
         }
@@ -883,333 +893,570 @@ private fun ProfileScreen(
 }
 
 @Composable
-private fun ProfileAvatar(
-    photo: Bitmap?,
-    size: androidx.compose.ui.unit.Dp
-) {
-    if (photo != null) {
-        Image(
-            bitmap = photo.asImageBitmap(),
-            contentDescription = "Foto do perfil",
-            modifier = Modifier
-                .size(size)
-                .clip(CircleShape)
-        )
-    } else {
-        Box(
-            modifier = Modifier
-                .size(size)
-                .clip(CircleShape)
-                .background(SurfaceLight),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(size * 0.55f)
+private fun StorePage() {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(bottom = 30.dp)
+    ) {
+        item {
+            Text(
+                "Loja Xbox",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black
             )
+
+            Text(
+                "Veja jogos, ofertas e detalhes na loja oficial da Xbox.",
+                color = Muted,
+                fontSize = 13.sp
+            )
+        }
+
+        item {
+            InfoCard(
+                "Explorar jogos",
+                "Confira lançamentos, jogos populares e ofertas atuais."
+            ) {
+                OpenOfficial(
+                    "https://www.xbox.com/pt-BR/games"
+                )
+            }
+        }
+
+        item {
+            InfoCard(
+                "Ofertas Xbox",
+                "Consulte os descontos vigentes na loja oficial."
+            ) {
+                OpenOfficial(
+                    "https://www.xbox.com/pt-BR/games/all-games"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FriendsPage() {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(bottom = 30.dp)
+    ) {
+        item {
+            Text(
+                "Amigos",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black
+            )
+
+            Text(
+                "Área preparada para recursos sociais do CloudPlay.",
+                color = Muted,
+                fontSize = 13.sp
+            )
+        }
+
+        item {
+            InfoCard(
+                "Lista de amigos",
+                "A lista real de amigos Xbox exige integração compatível com os serviços e permissões oficiais."
+            ) {}
+        }
+
+        item {
+            InfoCard(
+                "Mensagens e grupos",
+                "Mensagens, grupos e convites próprios do CloudPlay precisam de um servidor e contas CloudPlay. Ainda não estão ativos."
+            ) {}
+        }
+
+        item {
+            InfoCard(
+                "Convites Xbox",
+                "Convites e presença Xbox não são simulados nesta versão."
+            ) {}
         }
     }
 }
 
 @Composable
 private fun SettingsPage() {
-    var quality by remember { mutableStateOf("Alta") }
-    var region by remember { mutableStateOf("Automática") }
-    var language by remember { mutableStateOf("Português") }
-    var dataSaver by remember { mutableStateOf(false) }
-    var vibration by remember { mutableStateOf(true) }
-    var sound by remember { mutableStateOf(true) }
-    var touchControls by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+
+    val prefs = remember {
+        context.getSharedPreferences(
+            "cloudplay_settings",
+            Context.MODE_PRIVATE
+        )
+    }
+
+    var quality by remember {
+        mutableStateOf(
+            prefs.getString("quality", "Automática") ?: "Automática"
+        )
+    }
+
+    var region by remember {
+        mutableStateOf(
+            prefs.getString("region", "Automática") ?: "Automática"
+        )
+    }
+
+    var dataSaver by remember {
+        mutableStateOf(
+            prefs.getBoolean("data_saver", false)
+        )
+    }
+
+    var vibration by remember {
+        mutableStateOf(
+            prefs.getBoolean("vibration", true)
+        )
+    }
+
+    var touch by remember {
+        mutableStateOf(
+            prefs.getBoolean("touch", true)
+        )
+    }
+
+    var hud by remember {
+        mutableStateOf(
+            prefs.getBoolean("hud", false)
+        )
+    }
+
+    var animations by remember {
+        mutableStateOf(
+            prefs.getBoolean("animations", true)
+        )
+    }
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(bottom = 30.dp),
-        verticalArrangement = Arrangement.spacedBy(15.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 30.dp)
     ) {
         item {
             Text(
-                text = "Configurações",
-                color = MainText,
-                fontSize = 25.sp,
-                fontWeight = FontWeight.Bold
+                "Configurações",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black
+            )
+
+            Text(
+                "Preferências salvas neste dispositivo.",
+                color = Muted,
+                fontSize = 12.sp
             )
         }
 
         item {
-            SettingsSection("Imagem") {
-                ChoiceSetting(
-                    title = "Resolução",
-                    value = quality,
-                    options = listOf(
-                        "720p", "1080p", "1440p", "Automática"
-                    ),
-                    onChange = { quality = it }
-                )
-
-                ChoiceSetting(
-                    title = "FSR",
-                    value = "Desativado",
-                    options = listOf(
-                        "Desativado", "Qualidade",
-                        "Equilibrado", "Desempenho"
-                    ),
-                    onChange = {}
-                )
-
-                ChoiceSetting(
-                    title = "Formato do vídeo",
-                    value = "Automático",
-                    options = listOf(
-                        "Automático", "Preencher", "Ajustar à tela"
-                    ),
-                    onChange = {}
-                )
-
-                ChoiceSetting(
-                    title = "Codec",
-                    value = "Automático",
-                    options = listOf(
-                        "Automático", "H.264", "H.265", "AV1"
-                    ),
-                    onChange = {}
-                )
+            SettingDropdown(
+                "Qualidade preferida",
+                quality,
+                listOf("Automática", "720p", "1080p", "1440p")
+            ) {
+                quality = it
+                prefs.edit().putString("quality", it).apply()
             }
         }
 
         item {
-            SettingsSection("Desempenho") {
-                SettingSwitch(
-                    title = "Painel de desempenho",
-                    checked = true,
-                    onChange = {}
+            SettingDropdown(
+                "Região de conexão",
+                region,
+                listOf(
+                    "Automática",
+                    "Brasil",
+                    "América do Sul",
+                    "América do Norte",
+                    "Europa"
                 )
-
-                ChoiceSetting(
-                    title = "Layout do painel",
-                    value = "Completo",
-                    options = listOf(
-                        "Completo", "Compacto", "Mínimo"
-                    ),
-                    onChange = {}
-                )
-
-                SettingSwitch(
-                    title = "Menu durante a sessão",
-                    checked = true,
-                    onChange = {}
-                )
-
-                ChoiceSetting(
-                    title = "Motor de streaming",
-                    value = "Automático",
-                    options = listOf(
-                        "Automático", "Compatibilidade", "Desempenho"
-                    ),
-                    onChange = {}
-                )
+            ) {
+                region = it
+                prefs.edit().putString("region", it).apply()
             }
         }
 
         item {
-            SettingsSection("Gamepad e controles") {
-                SettingSwitch(
-                    title = "Controles virtuais",
-                    checked = touchControls,
-                    onChange = { touchControls = it }
-                )
-
-                SettingSwitch(
-                    title = "Vibração",
-                    checked = vibration,
-                    onChange = { vibration = it }
-                )
-
-                SettingSwitch(
-                    title = "Sons da interface",
-                    checked = sound,
-                    onChange = { sound = it }
-                )
+            SettingSwitch(
+                "Economia de dados",
+                "Preferência local; só terá efeito quando o streaming estiver integrado.",
+                dataSaver
+            ) {
+                dataSaver = it
+                prefs.edit().putBoolean("data_saver", it).apply()
             }
         }
 
         item {
-            SettingsSection("Áudio") {
-                ChoiceSetting(
-                    title = "Qualidade do áudio",
-                    value = "Alta",
-                    options = listOf("Baixa", "Média", "Alta"),
-                    onChange = {}
-                )
-
-                ChoiceSetting(
-                    title = "Saída de áudio",
-                    value = "Automática",
-                    options = listOf(
-                        "Automática", "Alto-falante", "Fones de ouvido"
-                    ),
-                    onChange = {}
-                )
+            SettingSwitch(
+                "Controles virtuais",
+                "Exibir controles de toque durante uma sessão no celular.",
+                touch
+            ) {
+                touch = it
+                prefs.edit().putBoolean("touch", it).apply()
             }
         }
 
         item {
-            SettingsSection("Cloud") {
-                ChoiceSetting(
-                    title = "Região",
-                    value = region,
-                    options = listOf(
-                        "Automática", "Brasil",
-                        "Estados Unidos", "Europa"
-                    ),
-                    onChange = { region = it }
-                )
-
-                ChoiceSetting(
-                    title = "Idioma dos jogos",
-                    value = language,
-                    options = listOf(
-                        "Português", "Inglês", "Espanhol"
-                    ),
-                    onChange = { language = it }
-                )
-
-                SettingSwitch(
-                    title = "Economia de dados",
-                    checked = dataSaver,
-                    onChange = { dataSaver = it }
-                )
+            SettingSwitch(
+                "Vibração",
+                "Preferência para dispositivos e jogos compatíveis.",
+                vibration
+            ) {
+                vibration = it
+                prefs.edit().putBoolean("vibration", it).apply()
             }
         }
 
         item {
-            SettingsSection("Preferências") {
-                ChoiceSetting(
-                    title = "Idioma do aplicativo",
-                    value = "Português",
-                    options = listOf(
-                        "Português", "English", "Español"
-                    ),
-                    onChange = {}
-                )
+            SettingSwitch(
+                "HUD de desempenho",
+                "Exibir informações de desempenho quando o streaming estiver disponível.",
+                hud
+            ) {
+                hud = it
+                prefs.edit().putBoolean("hud", it).apply()
+            }
+        }
+
+        item {
+            SettingSwitch(
+                "Animações",
+                "Ativar animações da interface do CloudPlay.",
+                animations
+            ) {
+                animations = it
+                prefs.edit().putBoolean("animations", it).apply()
+            }
+        }
+
+        item {
+            OutlinedButton(
+                onClick = {
+                    prefs.edit().clear().apply()
+
+                    quality = "Automática"
+                    region = "Automática"
+                    dataSaver = false
+                    vibration = true
+                    touch = true
+                    hud = false
+                    animations = true
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Restaurar configurações padrão")
             }
         }
 
         item {
             Text(
-                text = "Algumas opções serão aplicadas à transmissão quando o motor de streaming estiver integrado.",
-                color = SecondaryText,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(vertical = 8.dp)
+                "Resolução, codec, FSR, região e HUD não alteram uma transmissão até que um servidor de streaming real seja conectado.",
+                color = Muted,
+                fontSize = 11.sp
             )
         }
     }
 }
 
 @Composable
-private fun SettingsSection(
+private fun SettingDropdown(
     title: String,
-    content: @Composable ColumnScope.() -> Unit
+    value: String,
+    options: List<String>,
+    onChange: (String) -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(SurfaceColor)
-            .padding(16.dp)
+    var expanded by remember {
+        mutableStateOf(false)
+    }
+
+    Surface(
+        color = Panel,
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            text = title,
-            color = AccentColor,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Column(Modifier.padding(14.dp)) {
+            Text(
+                title,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold
+            )
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Box {
+                TextButton(
+                    onClick = {
+                        expanded = true
+                    }
+                ) {
+                    Text(
+                        value,
+                        color = BrightGreen
+                    )
 
-        content()
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        null,
+                        tint = BrightGreen
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = {
+                        expanded = false
+                    }
+                ) {
+                    options.forEach { option ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(option)
+                            },
+                            onClick = {
+                                onChange(option)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun SettingSwitch(
     title: String,
+    description: String,
     checked: Boolean,
     onChange: (Boolean) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 7.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        color = Panel,
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            text = title,
-            color = MainText,
-            fontSize = 13.sp
-        )
+        Row(
+            Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    title,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
 
-        Switch(
-            checked = checked,
-            onCheckedChange = onChange
-        )
+                Text(
+                    description,
+                    color = Muted,
+                    fontSize = 11.sp
+                )
+            }
+
+            Switch(
+                checked = checked,
+                onCheckedChange = onChange
+            )
+        }
     }
 }
 
 @Composable
-private fun ChoiceSetting(
+private fun InfoCard(
     title: String,
-    value: String,
-    options: List<String>,
-    onChange: (String) -> Unit
+    description: String,
+    onClick: () -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Column(
+    Surface(
+        color = Panel,
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 7.dp)
+            .clickable { onClick() }
     ) {
-        Text(
-            text = title,
-            color = MainText,
-            fontSize = 13.sp
-        )
-
-        Spacer(modifier = Modifier.height(7.dp))
-
-        Box {
-            OutlinedButton(
-                onClick = { expanded = true },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp)
-            ) {
+        Row(
+            Modifier.padding(17.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
                 Text(
-                    text = value,
-                    modifier = Modifier.weight(1f)
+                    title,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
                 )
 
-                Icon(
-                    Icons.Default.ArrowDropDown,
-                    contentDescription = null
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    description,
+                    color = Muted,
+                    fontSize = 12.sp
                 )
             }
 
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
+            Icon(
+                Icons.Default.ChevronRight,
+                null,
+                tint = BrightGreen
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfilePanel(
+    connected: Boolean,
+    userHash: String?,
+    onLogin: () -> Unit,
+    onLogout: () -> Unit,
+    onClose: () -> Unit
+) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xCC000000)),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            color = Panel,
+            shape = RoundedCornerShape(22.dp),
+            modifier = Modifier.fillMaxWidth(0.88f)
+        ) {
+            Column(
+                Modifier.padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option) },
-                        onClick = {
-                            onChange(option)
-                            expanded = false
-                        }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    IconButton(onClick = onClose) {
+                        Icon(
+                            Icons.Default.Close,
+                            "Fechar",
+                            tint = Color.White
+                        )
+                    }
+                }
+
+                Icon(
+                    Icons.Default.AccountCircle,
+                    null,
+                    tint = BrightGreen,
+                    modifier = Modifier.size(66.dp)
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                Text(
+                    "Perfil CloudPlay",
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    if (connected) "Sessão vinculada" else "Conta não conectada",
+                    color = Muted
+                )
+
+                if (connected) {
+                    Spacer(Modifier.height(10.dp))
+
+                    Text(
+                        "Identificador Xbox: ${userHash ?: "indisponível"}",
+                        color = Muted,
+                        fontSize = 11.sp
+                    )
+
+                    Text(
+                        "Gamertag, gamerpic, conquistas e estatísticas ainda não foram obtidos pela integração atual.",
+                        color = Muted,
+                        fontSize = 12.sp
+                    )
+
+                    Button(
+                        onClick = onLogout,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Desconectar")
+                    }
+                } else {
+                    Spacer(Modifier.height(12.dp))
+
+                    Button(
+                        onClick = onLogin,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Conectar conta Microsoft / Xbox")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationPanel(
+    onClose: () -> Unit
+) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xCC000000)),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            color = Panel,
+            shape = RoundedCornerShape(22.dp),
+            modifier = Modifier.fillMaxWidth(0.88f)
+        ) {
+            Column(Modifier.padding(22.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Notificações",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    IconButton(onClick = onClose) {
+                        Icon(
+                            Icons.Default.Close,
+                            "Fechar",
+                            tint = Color.White
+                        )
+                    }
+                }
+
+                            Text(
+                    "Nenhuma notificação recebida.",
+                    color = Color.LightGray,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(
+                        horizontal = 20.dp,
+                        vertical = 24.dp
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                TextButton(
+                    onClick = onClose,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(
+                        "Fechar",
+                        color = BrightGreen
                     )
                 }
             }
@@ -1218,50 +1465,13 @@ private fun ChoiceSetting(
 }
 
 @Composable
-private fun ActionCard(
-    title: String,
-    description: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(15.dp))
-            .background(SurfaceColor)
-            .padding(17.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(45.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(SurfaceLight),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = AccentColor
-            )
-        }
+private fun OpenOfficial(url: String) {
+    val context = LocalContext.current
 
-        Spacer(modifier = Modifier.width(13.dp))
-
-        Column {
-            Text(
-                text = title,
-                color = MainText,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = description,
-                color = SecondaryText,
-                fontSize = 11.sp
-            )
+    LaunchedEffect(url) {
+        runCatching {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            context.startActivity(intent)
         }
     }
 }
