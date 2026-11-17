@@ -1,13 +1,10 @@
 
 package com.cloudplay.app
 
-import android.graphics.Bitmap
-import android.os.Bundle
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
-import java.net.HttpURLConnection
-import java.net.URL
-import org.json.JSONObject
+import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
@@ -34,6 +31,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalConfiguration
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+
+private const val CLOUDPLAY_API =
+    "https://cloudplay-api.jpzinx44.workers.dev"
 
 private val BackgroundColor = Color(0xFF090B10)
 private val SurfaceColor = Color(0xFF151922)
@@ -43,6 +46,10 @@ private val MainText = Color(0xFFF5F6F8)
 private val SecondaryText = Color(0xFF9AA3B2)
 
 class MainActivity : ComponentActivity() {
+
+    private val xboxSession = mutableStateOf<String?>(null)
+    private val xboxUserHash = mutableStateOf<String?>(null)
+    private val xboxNotice = mutableStateOf("")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,41 +68,158 @@ class MainActivity : ComponentActivity() {
             window.isNavigationBarContrastEnforced = false
         }
 
+        handleAuthIntent(intent)
+
         setContent {
-            CloudPlayApp()
+            CloudPlayApp(
+                xboxSessionId = xboxSession.value,
+                xboxUserHash = xboxUserHash.value,
+                xboxNotice = xboxNotice.value,
+                onXboxLogin = { startXboxLogin() },
+                onXboxLogout = { disconnectXbox() }
+            )
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleAuthIntent(intent)
+    }
+
+    private fun startXboxLogin() {
+        try {
+            val intent = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("$CLOUDPLAY_API/auth/start")
+            )
+            startActivity(intent)
+        } catch (error: Exception) {
+            xboxNotice.value =
+                "Não foi possível abrir o login Microsoft."
+        }
+    }
+
+    private fun handleAuthIntent(intent: Intent?) {
+        val handoff = intent?.data?.getQueryParameter("handoff")
+            ?: return
+
+        if (!handoff.matches(Regex("^[a-f0-9]{64}$"))) {
+            xboxNotice.value = "Código de autenticação inválido."
+            return
+        }
+
+        xboxNotice.value = "Conectando sua conta Xbox..."
+
+        Thread {
+            var connection: HttpURLConnection? = null
+
+            try {
+                connection = URL(
+                    "$CLOUDPLAY_API/auth/redeem"
+                ).openConnection() as HttpURLConnection
+
+                connection.requestMethod = "POST"
+                connection.connectTimeout = 15000
+                connection.readTimeout = 15000
+                connection.doOutput = true
+
+                connection.setRequestProperty(
+                    "Content-Type",
+                    "application/json"
+                )
+
+                val body = JSONObject()
+                    .put("handoff", handoff)
+                    .toString()
+
+                connection.outputStream.use {
+                    it.write(body.toByteArray(Charsets.UTF_8))
+                }
+
+                val responseCode = connection.responseCode
+
+                val responseStream =
+                    if (responseCode in 200..299) {
+                        connection.inputStream
+                    } else {
+                        connection.errorStream
+                    }
+
+                val response = responseStream
+                    ?.bufferedReader()
+                    ?.use { it.readText() }
+                    ?: "{}"
+
+                val result = JSONObject(response)
+
+                runOnUiThread {
+                    if (responseCode in 200..299 &&
+                        result.optBoolean("success")) {
+
+                        val sessionId =
+                            result.optString("sessionId")
+
+                        if (sessionId.isBlank()) {
+                            xboxNotice.value =
+                                "O servidor não retornou uma sessão válida."
+                        } else {
+                            xboxSession.value = sessionId
+                            xboxUserHash.value =
+                                result.optString("userHash")
+
+                            xboxNotice.value =
+                                "Conta Xbox conectada com sucesso!"
+                        }
+
+                    } else {
+                        xboxNotice.value =
+                            result.optString(
+                                "error",
+                                "Não foi possível conectar ao Xbox."
+                            )
+                    }
+                }
+
+            } catch (error: Exception) {
+                runOnUiThread {
+                    xboxNotice.value =
+                        "Erro ao conectar ao Xbox. Verifique sua internet."
+                }
+            } finally {
+                connection?.disconnect()
+            }
+        }.start()
+    }
+
+    private fun disconnectXbox() {
+        // Limpa a sessão mantida na memória deste aplicativo.
+        // A revogação da sessão no servidor será implementada
+        // em uma próxima etapa.
+        xboxSession.value = null
+        xboxUserHash.value = null
+        xboxNotice.value = "Conta desconectada deste aparelho."
     }
 }
 
 @Composable
-fun CloudPlayApp() {
-    val activity = androidx.compose.ui.platform.LocalContext.current as ComponentActivity
+fun CloudPlayApp(
+    xboxSessionId: String?,
+    xboxUserHash: String?,
+    xboxNotice: String,
+    onXboxLogin: () -> Unit,
+    onXboxLogout: () -> Unit
+) {
     val configuration = LocalConfiguration.current
     val isTv = configuration.screenWidthDp >= 700
 
-    var account by remember { mutableStateOf<String?>(null) }
-    var notice by remember { mutableStateOf("") }
-    var profilePhoto by remember { mutableStateOf<Bitmap?>(null) }
-    var currentPage by remember { mutableStateOf("Início") }
-
-    val auth = remember {
-        MicrosoftAuth(
-            activity = activity,
-            onSignedIn = { username ->
-                account = username
-            },
-            onSignedOut = {
-                account = null
-                profilePhoto = null
-            },
-            onMessage = { message ->
-                notice = message
-            },
-            onPhotoLoaded = { bitmap ->
-                profilePhoto = bitmap
-            }
-        )
+    val account = if (xboxSessionId != null) {
+        "Xbox conectado"
+    } else {
+        null
     }
+
+    var currentPage by remember { mutableStateOf("Início") }
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -122,20 +246,22 @@ fun CloudPlayApp() {
                         page = currentPage,
                         onPageChange = { currentPage = it },
                         account = account,
-                        photo = profilePhoto,
-                        notice = notice,
-                        onLogin = { auth.signIn() },
-                        onLogout = { auth.signOut() }
+                        photo = null,
+                        notice = xboxNotice,
+                        userHash = xboxUserHash,
+                        onLogin = onXboxLogin,
+                        onLogout = onXboxLogout
                     )
                 } else {
                     MobileInterface(
                         page = currentPage,
                         onPageChange = { currentPage = it },
                         account = account,
-                        photo = profilePhoto,
-                        notice = notice,
-                        onLogin = { auth.signIn() },
-                        onLogout = { auth.signOut() }
+                        photo = null,
+                        notice = xboxNotice,
+                        userHash = xboxUserHash,
+                        onLogin = onXboxLogin,
+                        onLogout = onXboxLogout
                     )
                 }
             }
@@ -159,6 +285,7 @@ private fun TvInterface(
     account: String?,
     photo: Bitmap?,
     notice: String,
+    userHash: String?,
     onLogin: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -195,6 +322,7 @@ private fun TvInterface(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
+
             Text(
                 text = "Sua experiência de jogos",
                 color = SecondaryText,
@@ -219,13 +347,11 @@ private fun TvInterface(
             when (page) {
                 "Início" -> HomeScreen(isTv = true)
 
-                "Minha Biblioteca" -> CatalogPage(
-                    title = "Minha Biblioteca"
-                )
+                "Minha Biblioteca" ->
+                    CatalogPage(title = "Minha Biblioteca")
 
-                "Game Pass" -> CatalogPage(
-                    title = "Game Pass"
-                )
+                "Game Pass" ->
+                    CatalogPage(title = "Game Pass")
 
                 "Pesquisar" -> SearchPage()
 
@@ -233,6 +359,7 @@ private fun TvInterface(
                     account = account,
                     photo = photo,
                     notice = notice,
+                    userHash = userHash,
                     onLogin = onLogin,
                     onLogout = onLogout
                 )
@@ -252,6 +379,7 @@ private fun MobileInterface(
     account: String?,
     photo: Bitmap?,
     notice: String,
+    userHash: String?,
     onLogin: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -275,13 +403,11 @@ private fun MobileInterface(
             when (page) {
                 "Início" -> HomeScreen(isTv = false)
 
-                "Minha Biblioteca" -> CatalogPage(
-                    title = "Minha Biblioteca"
-                )
+                "Minha Biblioteca" ->
+                    CatalogPage(title = "Minha Biblioteca")
 
-                "Game Pass" -> CatalogPage(
-                    title = "Game Pass"
-                )
+                "Game Pass" ->
+                    CatalogPage(title = "Game Pass")
 
                 "Pesquisar" -> SearchPage()
 
@@ -289,6 +415,7 @@ private fun MobileInterface(
                     account = account,
                     photo = photo,
                     notice = notice,
+                    userHash = userHash,
                     onLogin = onLogin,
                     onLogout = onLogout
                 )
@@ -353,7 +480,7 @@ private fun MobileInterface(
 
 @Composable
 private fun CloudLogo() {
-    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val configuration = LocalConfiguration.current
     val isTv = configuration.screenWidthDp >= 700
 
     Image(
@@ -545,7 +672,8 @@ private fun HeroBanner(isTv: Boolean) {
         contentAlignment = Alignment.CenterStart
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(0.85f),
+            modifier = Modifier.
+.fillMaxWidth(0.85f),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
@@ -624,18 +752,7 @@ private fun SearchPage() {
                     contentDescription = "Pesquisar"
                 )
             },
-            trailingIcon = {
-                if (query.isNotEmpty()) {
-                    IconButton(onClick = { query = "" }) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Limpar"
-                        )
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp)
+            singleLine = true
         )
 
         XboxCatalogSearchScreen(query = query)
@@ -647,6 +764,7 @@ private fun ProfileScreen(
     account: String?,
     photo: Bitmap?,
     notice: String,
+    userHash: String?,
     onLogin: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -659,14 +777,14 @@ private fun ProfileScreen(
     ) {
         item {
             Text(
-                "Perfil Xbox",
+                text = "Perfil Xbox",
                 color = MainText,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold
             )
 
             Text(
-                "Sua identidade e atividade no Xbox",
+                text = "Sua identidade e atividade no Xbox",
                 color = SecondaryText,
                 fontSize = 13.sp
             )
@@ -681,16 +799,15 @@ private fun ProfileScreen(
                     .padding(22.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // A foto Microsoft não é necessariamente a Gamerpic do Xbox.
-                ProfileAvatar(
-                    photo = null,
-                    size = 100.dp
-                )
+                ProfileAvatar(photo, 100.dp)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    "Perfil Xbox",
+                    text = if (account != null)
+                        "Xbox conectado"
+                    else
+                        "Perfil Xbox",
                     color = MainText,
                     fontSize = 21.sp,
                     fontWeight = FontWeight.Bold
@@ -698,13 +815,22 @@ private fun ProfileScreen(
 
                 Text(
                     text = if (account != null)
-                        
-"Conta Microsoft conectada"
+                        "Sua conta está conectada ao CloudPlay"
                     else
                         "Conecte sua conta Microsoft",
                     color = SecondaryText,
                     fontSize = 13.sp
                 )
+
+                if (userHash != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Identificador Xbox: $userHash",
+                        color = SecondaryText,
+                        fontSize = 11.sp
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(22.dp))
 
@@ -716,15 +842,19 @@ private fun ProfileScreen(
                             contentColor = Color.Black
                         )
                     ) {
-                        Icon(Icons.Default.Login, contentDescription = null)
+                        Icon(
+                            Icons.Default.Login,
+                            contentDescription = null
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Conectar Microsoft")
+                        Text("Conectar Xbox")
                     }
                 } else {
-                    OutlinedButton(
-                        onClick = onLogout
-                    ) {
-                        Icon(Icons.Default.Logout, contentDescription = null)
+                    OutlinedButton(onClick = onLogout) {
+                        Icon(
+                            Icons.Default.Logout,
+                            contentDescription = null
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Desconectar")
                     }
@@ -744,7 +874,7 @@ private fun ProfileScreen(
 
                 ActionCard(
                     title = "Estatísticas Xbox",
-                    description = "Gamertag, conquistas e pontuação Xbox precisam da integração Xbox Live.",
+                    description = "Gamertag, conquistas e pontuação serão carregados em uma próxima integração.",
                     icon = Icons.Default.EmojiEvents
                 )
             }
@@ -814,28 +944,37 @@ private fun SettingsPage() {
                 ChoiceSetting(
                     title = "Resolução",
                     value = quality,
-                    options = listOf("720p", "1080p", "1440p", "Automática"),
+                    options = listOf(
+                        "720p", "1080p", "1440p", "Automática"
+                    ),
                     onChange = { quality = it }
                 )
 
                 ChoiceSetting(
                     title = "FSR",
                     value = "Desativado",
-                    options = listOf("Desativado", "Qualidade", "Equilibrado", "Desempenho"),
+                    options = listOf(
+                        "Desativado", "Qualidade",
+                        "Equilibrado", "Desempenho"
+                    ),
                     onChange = {}
                 )
 
                 ChoiceSetting(
                     title = "Formato do vídeo",
                     value = "Automático",
-                    options = listOf("Automático", "Preencher", "Ajustar à tela"),
+                    options = listOf(
+                        "Automático", "Preencher", "Ajustar à tela"
+                    ),
                     onChange = {}
                 )
 
                 ChoiceSetting(
                     title = "Codec",
                     value = "Automático",
-                    options = listOf("Automático", "H.264", "H.265", "AV1"),
+                    options = listOf(
+                        "Automático", "H.264", "H.265", "AV1"
+                    ),
                     onChange = {}
                 )
             }
@@ -852,7 +991,9 @@ private fun SettingsPage() {
                 ChoiceSetting(
                     title = "Layout do painel",
                     value = "Completo",
-                    options = listOf("Completo", "Compacto", "Mínimo"),
+                    options = listOf(
+                        "Completo", "Compacto", "Mínimo"
+                    ),
                     onChange = {}
                 )
 
@@ -865,7 +1006,9 @@ private fun SettingsPage() {
                 ChoiceSetting(
                     title = "Motor de streaming",
                     value = "Automático",
-                    options = listOf("Automático", "Compatibilidade", "Desempenho"),
+                    options = listOf(
+                        "Automático", "Compatibilidade", "Desempenho"
+                    ),
                     onChange = {}
                 )
             }
@@ -905,7 +1048,9 @@ private fun SettingsPage() {
                 ChoiceSetting(
                     title = "Saída de áudio",
                     value = "Automática",
-                    options = listOf("Automática", "Alto-falante", "Fones de ouvido"),
+                    options = listOf(
+                        "Automática", "Alto-falante", "Fones de ouvido"
+                    ),
                     onChange = {}
                 )
             }
@@ -916,14 +1061,19 @@ private fun SettingsPage() {
                 ChoiceSetting(
                     title = "Região",
                     value = region,
-                    options = listOf("Automática", "Brasil", "Estados Unidos", "Europa"),
+                    options = listOf(
+                        "Automática", "Brasil",
+                        "Estados Unidos", "Europa"
+                    ),
                     onChange = { region = it }
                 )
 
                 ChoiceSetting(
                     title = "Idioma dos jogos",
                     value = language,
-                    options = listOf("Português", "Inglês", "Espanhol"),
+                    options = listOf(
+                        "Português", "Inglês", "Espanhol"
+                    ),
                     onChange = { language = it }
                 )
 
@@ -940,7 +1090,9 @@ private fun SettingsPage() {
                 ChoiceSetting(
                     title = "Idioma do aplicativo",
                     value = "Português",
-                    options = listOf("Português", "English", "Español"),
+                    options = listOf(
+                        "Português", "English", "Español"
+                    ),
                     onChange = {}
                 )
             }
@@ -1040,6 +1192,7 @@ private fun ChoiceSetting(
                     text = value,
                     modifier = Modifier.weight(1f)
                 )
+
                 Icon(
                     Icons.Default.ArrowDropDown,
                     contentDescription = null
@@ -1112,5 +1265,3 @@ private fun ActionCard(
         }
     }
 }
-
-                  
