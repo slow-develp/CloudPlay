@@ -672,8 +672,8 @@ private fun HeroBanner(isTv: Boolean) {
         contentAlignment = Alignment.CenterStart
     ) {
         Column(
-            modifier = Modifier.
-.fillMaxWidth(0.85f),
+            modifier = Modifier
+    .fillMaxWidth(0.85f),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
