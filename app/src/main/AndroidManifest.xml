@@ -7,11 +7,11 @@
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
-     
-     <uses-feature
-    android:name="android.hardware.touchscreen"
-    android:required="false" />
-    
+
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
     <application
         android:allowBackup="true"
         android:label="CloudPlay"
@@ -25,6 +25,7 @@
             android:name=".MainActivity"
             android:exported="true">
 
+            <!-- Inicialização Android e Android TV -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -35,8 +36,20 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
 
+            <!-- Retorno da autenticação Xbox -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="cloudplay"
+                    android:host="auth" />
+            </intent-filter>
+
         </activity>
 
+        <!-- Autenticação Microsoft MSAL -->
         <activity
             android:name="com.microsoft.identity.client.BrowserTabActivity"
             android:exported="true">
