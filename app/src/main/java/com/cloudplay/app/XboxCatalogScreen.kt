@@ -444,7 +444,7 @@ private fun GameDetailsDialog(game: XboxGame, onBack: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().height(250.dp)
                 ) {
                     RemoteGameImage(
-                        url = game.imageUrl,
+                        url = game.bannerUrl.ifBlank { game.imageUrl },
                         title = game.title,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -494,7 +494,17 @@ private fun GameDetailsDialog(game: XboxGame, onBack: () -> Unit) {
                         Spacer(Modifier.height(8.dp))
                         Text("Catálogo Xbox", color = CatalogMuted, fontSize = 13.sp)
                         Spacer(Modifier.height(12.dp))
-                        Text("Informações do jogo", color = CatalogAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        if (game.genre.isNotBlank()) {
+                            Text("Gênero: ${game.genre}", color = CatalogMuted, fontSize = 12.sp)
+                            Spacer(Modifier.height(6.dp))
+                        }
+                        if (game.developer.isNotBlank()) {
+                            Text("Desenvolvedora: ${game.developer}", color = CatalogMuted, fontSize = 12.sp)
+                            Spacer(Modifier.height(6.dp))
+                        }
+                        if (game.publisher.isNotBlank()) {
+                            Text("Publicadora: ${game.publisher}", color = CatalogMuted, fontSize = 12.sp)
+                        }
                     }
                 }
 
