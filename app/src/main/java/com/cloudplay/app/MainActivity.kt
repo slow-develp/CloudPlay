@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,6 +41,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
 
         setContent {
             CloudPlayApp()
@@ -87,31 +103,36 @@ fun CloudPlayApp() {
         )
     ) {
         Surface(
-    modifier = Modifier
-        .fillMaxSize()
-        .windowInsetsPadding(WindowInsets.safeDrawing),
-    color = BackgroundColor
-) {
-            if (isTv) {
-                TvInterface(
-                    page = currentPage,
-                    onPageChange = { currentPage = it },
-                    account = account,
-                    photo = profilePhoto,
-                    notice = notice,
-                    onLogin = { auth.signIn() },
-                    onLogout = { auth.signOut() }
-                )
-            } else {
-                MobileInterface(
-                    page = currentPage,
-                    onPageChange = { currentPage = it },
-                    account = account,
-                    photo = profilePhoto,
-                    notice = notice,
-                    onLogin = { auth.signIn() },
-                    onLogout = { auth.signOut() }
-                )
+            modifier = Modifier.fillMaxSize(),
+            color = BackgroundColor
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(BackgroundColor)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+            ) {
+                if (isTv) {
+                    TvInterface(
+                        page = currentPage,
+                        onPageChange = { currentPage = it },
+                        account = account,
+                        photo = profilePhoto,
+                        notice = notice,
+                        onLogin = { auth.signIn() },
+                        onLogout = { auth.signOut() }
+                    )
+                } else {
+                    MobileInterface(
+                        page = currentPage,
+                        onPageChange = { currentPage = it },
+                        account = account,
+                        photo = profilePhoto,
+                        notice = notice,
+                        onLogin = { auth.signIn() },
+                        onLogout = { auth.signOut() }
+                    )
+                }
             }
         }
     }
