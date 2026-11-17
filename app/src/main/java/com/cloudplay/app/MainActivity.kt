@@ -3,6 +3,11 @@ package com.cloudplay.app
 
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
