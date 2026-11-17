@@ -346,8 +346,6 @@ private fun MobileInterface(
     }
 }
 
-
-
 @Composable
 private fun CloudLogo() {
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -364,8 +362,6 @@ private fun CloudLogo() {
         contentScale = androidx.compose.ui.layout.ContentScale.Fit
     )
 }
-
-
 
 @Composable
 private fun Header(
@@ -649,87 +645,106 @@ private fun ProfileScreen(
     onLogin: () -> Unit,
     onLogout: () -> Unit
 ) {
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentPadding = PaddingValues(bottom = 30.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Text(
-            text = "Meu perfil",
-            color = MainText,
-            fontSize = 25.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(30.dp))
-
-        ProfileAvatar(photo, 100.dp)
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        Text(
-            text = account ?: "Conta não conectada",
-            color = MainText,
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = if (account != null) {
-                "Conta Microsoft conectada"
-            } else {
-                "Conecte sua conta Microsoft"
-            },
-            color = SecondaryText,
-            fontSize = 13.sp
-        )
-
-        Spacer(modifier = Modifier.height(22.dp))
-
-        if (account == null) {
-            Button(
-                onClick = onLogin,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AccentColor,
-                    contentColor = Color.Black
-                )
-            ) {
-                Icon(Icons.Default.Login, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Conectar Microsoft")
-            }
-        } else {
-            OutlinedButton(
-                onClick = onLogout
-            ) {
-                Icon(Icons.Default.Logout, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Desconectar")
-            }
-        }
-
-        if (notice.isNotBlank()) {
-            Spacer(modifier = Modifier.height(16.dp))
+        item {
+            Text(
+                "Perfil Xbox",
+                color = MainText,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold
+            )
 
             Text(
-                text = notice,
+                "Sua identidade e atividade no Xbox",
                 color = SecondaryText,
-                fontSize = 12.sp
+                fontSize = 13.sp
             )
         }
 
-        Spacer(modifier = Modifier.height(25.dp))
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(SurfaceColor)
+                    .padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // A foto Microsoft não é necessariamente a Gamerpic do Xbox.
+                ProfileAvatar(
+                    photo = null,
+                    size = 100.dp
+                )
 
-        ActionCard(
-            title = "Estatísticas Xbox",
-            description = "Gamertag, conquistas e pontuação Xbox precisam da integração Xbox Live.",
-            icon = Icons.Default.EmojiEvents
-        )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    "Perfil Xbox",
+                    color = MainText,
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = if (account != null)
+                        
+"Conta Microsoft conectada"
+                    else
+                        "Conecte sua conta Microsoft",
+                    color = SecondaryText,
+                    fontSize = 13.sp
+                )
+
+                Spacer(modifier = Modifier.height(22.dp))
+
+                if (account == null) {
+                    Button(
+                        onClick = onLogin,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AccentColor,
+                            contentColor = Color.Black
+                        )
+                    ) {
+                        Icon(Icons.Default.Login, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Conectar Microsoft")
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onLogout
+                    ) {
+                        Icon(Icons.Default.Logout, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Desconectar")
+                    }
+                }
+
+                if (notice.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = notice,
+                        color = SecondaryText,
+                        fontSize = 12.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(25.dp))
+
+                ActionCard(
+                    title = "Estatísticas Xbox",
+                    description = "Gamertag, conquistas e pontuação Xbox precisam da integração Xbox Live.",
+                    icon = Icons.Default.EmojiEvents
+                )
+            }
+        }
     }
-}
 
 @Composable
 private fun ProfileAvatar(
@@ -789,36 +804,69 @@ private fun SettingsPage() {
         }
 
         item {
-            SettingsSection("Imagem e desempenho") {
+            SettingsSection("Imagem") {
                 ChoiceSetting(
-                    title = "Qualidade da imagem",
+                    title = "Resolução",
                     value = quality,
-                    options = listOf("Baixa", "Média", "Alta", "Máxima"),
+                    options = listOf("720p", "1080p", "1440p", "Automática"),
                     onChange = { quality = it }
                 )
 
                 ChoiceSetting(
-                    title = "Região",
-                    value = region,
-                    options = listOf(
-                        "Automática",
-                        "Brasil",
-                        "Estados Unidos",
-                        "Europa"
-                    ),
-                    onChange = { region = it }
+                    title = "FSR",
+                    value = "Desativado",
+                    options = listOf("Desativado", "Qualidade", "Equilibrado", "Desempenho"),
+                    onChange = {}
                 )
 
-                SettingSwitch(
-                    title = "Economia de dados",
-                    checked = dataSaver,
-                    onChange = { dataSaver = it }
+                ChoiceSetting(
+                    title = "Formato do vídeo",
+                    value = "Automático",
+                    options = listOf("Automático", "Preencher", "Ajustar à tela"),
+                    onChange = {}
+                )
+
+                ChoiceSetting(
+                    title = "Codec",
+                    value = "Automático",
+                    options = listOf("Automático", "H.264", "H.265", "AV1"),
+                    onChange = {}
                 )
             }
         }
 
         item {
-            SettingsSection("Controles") {
+            SettingsSection("Desempenho") {
+                SettingSwitch(
+                    title = "Painel de desempenho",
+                    checked = true,
+                    onChange = {}
+                )
+
+                ChoiceSetting(
+                    title = "Layout do painel",
+                    value = "Completo",
+                    options = listOf("Completo", "Compacto", "Mínimo"),
+                    onChange = {}
+                )
+
+                SettingSwitch(
+                    title = "Menu durante a sessão",
+                    checked = true,
+                    onChange = {}
+                )
+
+                ChoiceSetting(
+                    title = "Motor de streaming",
+                    value = "Automático",
+                    options = listOf("Automático", "Compatibilidade", "Desempenho"),
+                    onChange = {}
+                )
+            }
+        }
+
+        item {
+            SettingsSection("Gamepad e controles") {
                 SettingSwitch(
                     title = "Controles virtuais",
                     checked = touchControls,
@@ -832,7 +880,7 @@ private fun SettingsPage() {
                 )
 
                 SettingSwitch(
-                    title = "Sons",
+                    title = "Sons da interface",
                     checked = sound,
                     onChange = { sound = it }
                 )
@@ -840,25 +888,64 @@ private fun SettingsPage() {
         }
 
         item {
-            SettingsSection("Idioma") {
+            SettingsSection("Áudio") {
+                ChoiceSetting(
+                    title = "Qualidade do áudio",
+                    value = "Alta",
+                    options = listOf("Baixa", "Média", "Alta"),
+                    onChange = {}
+                )
+
+                ChoiceSetting(
+                    title = "Saída de áudio",
+                    value = "Automática",
+                    options = listOf("Automática", "Alto-falante", "Fones de ouvido"),
+                    onChange = {}
+                )
+            }
+        }
+
+        item {
+            SettingsSection("Cloud") {
+                ChoiceSetting(
+                    title = "Região",
+                    value = region,
+                    options = listOf("Automática", "Brasil", "Estados Unidos", "Europa"),
+                    onChange = { region = it }
+                )
+
+                ChoiceSetting(
+                    title = "Idioma dos jogos",
+                    value = language,
+                    options = listOf("Português", "Inglês", "Espanhol"),
+                    onChange = { language = it }
+                )
+
+                SettingSwitch(
+                    title = "Economia de dados",
+                    checked = dataSaver,
+                    onChange = { dataSaver = it }
+                )
+            }
+        }
+
+        item {
+            SettingsSection("Preferências") {
                 ChoiceSetting(
                     title = "Idioma do aplicativo",
-                    value = language,
-                    options = listOf(
-                        "Português",
-                        "English",
-                        "Español"
-                    ),
-                    onChange = { language = it }
+                    value = "Português",
+                    options = listOf("Português", "English", "Español"),
+                    onChange = {}
                 )
             }
         }
 
         item {
             Text(
-                text = "As opções desta tela são preferências locais. A qualidade e a região só controlarão a transmissão quando o serviço de streaming estiver integrado.",
+                text = "Algumas opções serão aplicadas à transmissão quando o motor de streaming estiver integrado.",
                 color = SecondaryText,
-                fontSize = 12.sp
+                fontSize = 11.sp,
+                modifier = Modifier.padding(vertical = 8.dp)
             )
         }
     }
@@ -878,8 +965,8 @@ private fun SettingsSection(
     ) {
         Text(
             text = title,
-            color = MainText,
-            fontSize = 16.sp,
+            color = AccentColor,
+            fontSize = 15.sp,
             fontWeight = FontWeight.Bold
         )
 
@@ -898,23 +985,19 @@ private fun SettingSwitch(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 7.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = title,
             color = MainText,
-            fontSize = 14.sp,
-            modifier = Modifier.weight(1f)
+            fontSize = 13.sp
         )
 
         Switch(
             checked = checked,
-            onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = AccentColor
-            )
+            onCheckedChange = onChange
         )
     }
 }
@@ -1023,3 +1106,5 @@ private fun ActionCard(
         }
     }
 }
+
+                  
