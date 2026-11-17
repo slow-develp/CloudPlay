@@ -599,28 +599,24 @@ private fun SearchPage() {
             leadingIcon = {
                 Icon(
                     Icons.Default.Search,
-                    contentDescription = null
+                    contentDescription = "Pesquisar"
                 )
+            },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { query = "" }) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Limpar"
+                        )
+                    }
+                }
             },
             singleLine = true,
             shape = RoundedCornerShape(14.dp)
         )
 
-        Spacer(modifier = Modifier.height(15.dp))
-
-        Text(
-            text = if (query.isBlank()) {
-                "Digite o nome de um jogo para pesquisar."
-            } else {
-                "Pesquisa: $query"
-            },
-            color = SecondaryText,
-            fontSize = 13.sp
-        )
-
-        Spacer(modifier = Modifier.height(15.dp))
-
-        XboxCatalogScreen()
+        XboxCatalogSearchScreen(query = query)
     }
 }
 
