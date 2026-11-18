@@ -679,8 +679,7 @@ private fun MobileShell(
                             }
                         )
                     },
-    
-                    colors = NavigationBarItemDefaults.colors(
+                                        colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = BrightGreen,
                         indicatorColor = Color(0xFF17351F),
                         selectedTextColor = BrightGreen
@@ -849,6 +848,8 @@ private fun SearchPage(
 
 @Composable
 private fun GamePassPage() {
+    val context = LocalContext.current
+
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(bottom = 30.dp)
@@ -873,7 +874,8 @@ private fun GamePassPage() {
                 "Planos e preços",
                 "Veja os planos disponíveis no Brasil, benefícios e condições atualizadas."
             ) {
-                OpenOfficial(
+                openOfficial(
+                    context,
                     "https://www.xbox.com/pt-BR/xbox-game-pass"
                 )
             }
@@ -884,7 +886,8 @@ private fun GamePassPage() {
                 "Catálogo de jogos",
                 "Explore os jogos incluídos nos diferentes planos."
             ) {
-                OpenOfficial(
+                openOfficial(
+                    context,
                     "https://www.xbox.com/pt-BR/xbox-game-pass/games"
                 )
             }
@@ -894,6 +897,8 @@ private fun GamePassPage() {
 
 @Composable
 private fun StorePage() {
+    val context = LocalContext.current
+
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(bottom = 30.dp)
@@ -918,7 +923,8 @@ private fun StorePage() {
                 "Explorar jogos",
                 "Confira lançamentos, jogos populares e ofertas atuais."
             ) {
-                OpenOfficial(
+                openOfficial(
+                    context,
                     "https://www.xbox.com/pt-BR/games"
                 )
             }
@@ -929,7 +935,8 @@ private fun StorePage() {
                 "Ofertas Xbox",
                 "Consulte os descontos vigentes na loja oficial."
             ) {
-                OpenOfficial(
+                openOfficial(
+                    context,
                     "https://www.xbox.com/pt-BR/games/all-games"
                 )
             }
@@ -1438,7 +1445,7 @@ private fun NotificationPanel(
                     }
                 }
 
-                            Text(
+                Text(
                     "Nenhuma notificação recebida.",
                     color = Color.LightGray,
                     fontSize = 14.sp,
@@ -1464,14 +1471,12 @@ private fun NotificationPanel(
     }
 }
 
-@Composable
-private fun OpenOfficial(url: String) {
-    val context = LocalContext.current
-
-    LaunchedEffect(url) {
-        runCatching {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-            context.startActivity(intent)
-        }
+private fun openOfficial(context: Context, url: String) {
+    runCatching {
+        val intent = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse(url)
+        )
+        context.startActivity(intent)
     }
 }
