@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 
 private val BackgroundColor = Color(0xFF090B10)
 private val SurfaceColor = Color(0xFF151922)
@@ -976,174 +977,231 @@ private fun ProfileAvatar(
 
 @Composable
 private fun SettingsPage() {
-    var quality by remember { mutableStateOf("Alta") }
-    var region by remember { mutableStateOf("Automática") }
-    var language by remember { mutableStateOf("Português") }
-    var dataSaver by remember { mutableStateOf(false) }
-    var vibration by remember { mutableStateOf(true) }
-    var sound by remember { mutableStateOf(true) }
-    var touchControls by remember { mutableStateOf(true) }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("cloudplay_settings", 0) }
+
+    var resolution by remember { mutableStateOf(prefs.getString("resolution", "Automática") ?: "Automática") }
+    var fsr by remember { mutableStateOf(prefs.getString("fsr", "Desativado") ?: "Desativado") }
+    var videoFit by remember { mutableStateOf(prefs.getString("video_fit", "Ajustar à tela") ?: "Ajustar à tela") }
+    var codec by remember { mutableStateOf(prefs.getString("codec", "Automático") ?: "Automático") }
+    var fps by remember { mutableStateOf(prefs.getString("fps", "Até 60 FPS") ?: "Até 60 FPS") }
+    var performancePanel by remember { mutableStateOf(prefs.getBoolean("performance_panel", true)) }
+    var panelLayout by remember { mutableStateOf(prefs.getString("panel_layout", "Compacto") ?: "Compacto") }
+    var sessionMenu by remember { mutableStateOf(prefs.getBoolean("session_menu", true)) }
+    var engine by remember { mutableStateOf(prefs.getString("engine", "Automático") ?: "Automático") }
+    var touchControls by remember { mutableStateOf(prefs.getBoolean("touch_controls", true)) }
+    var vibration by remember { mutableStateOf(prefs.getBoolean("vibration", true)) }
+    var interfaceSound by remember { mutableStateOf(prefs.getBoolean("interface_sound", true)) }
+    var leftHanded by remember { mutableStateOf(prefs.getBoolean("left_handed", false)) }
+    var controllerLayout by remember { mutableStateOf(prefs.getString("controller_layout", "Padrão") ?: "Padrão") }
+    var stickSensitivity by remember { mutableStateOf(prefs.getString("stick_sensitivity", "Normal") ?: "Normal") }
+    var audioQuality by remember { mutableStateOf(prefs.getString("audio_quality", "Alta") ?: "Alta") }
+    var audioOutput by remember { mutableStateOf(prefs.getString("audio_output", "Automática") ?: "Automática") }
+    var audioBalance by remember { mutableStateOf(prefs.getString("audio_balance", "Centralizado") ?: "Centralizado") }
+    var region by remember { mutableStateOf(prefs.getString("region", "Automática") ?: "Automática") }
+    var networkMode by remember { mutableStateOf(prefs.getString("network_mode", "Automático") ?: "Automático") }
+    var gameLanguage by remember { mutableStateOf(prefs.getString("game_language", "Português") ?: "Português") }
+    var dataSaver by remember { mutableStateOf(prefs.getBoolean("data_saver", false)) }
+    var appLanguage by remember { mutableStateOf(prefs.getString("app_language", "Português (Brasil)") ?: "Português (Brasil)") }
+    var theme by remember { mutableStateOf(prefs.getString("theme", "Escuro") ?: "Escuro") }
+    var startupPage by remember { mutableStateOf(prefs.getString("startup_page", "Início") ?: "Início") }
+    var notifications by remember { mutableStateOf(prefs.getBoolean("notifications", true)) }
+    var friendNotifications by remember { mutableStateOf(prefs.getBoolean("friend_notifications", true)) }
+    var promotionalNotifications by remember { mutableStateOf(prefs.getBoolean("promo_notifications", false)) }
+    var analytics by remember { mutableStateOf(prefs.getBoolean("analytics", false)) }
+    var autoUpdates by remember { mutableStateOf(prefs.getBoolean("auto_updates", true)) }
+    var clearCacheOnExit by remember { mutableStateOf(prefs.getBoolean("clear_cache_exit", false)) }
+    var showOnlineStatus by remember { mutableStateOf(prefs.getBoolean("show_online_status", true)) }
+    var confirmExit by remember { mutableStateOf(prefs.getBoolean("confirm_exit", true)) }
+    // Preferências adicionais preparadas para os módulos de streaming e controle.
+    var bitrate by remember { mutableStateOf(prefs.getString("stream_bitrate", "Automático") ?: "Automático") }
+    var reconnect by remember { mutableStateOf(prefs.getBoolean("auto_reconnect", true)) }
+    var reconnectAttempts by remember { mutableStateOf(prefs.getString("reconnect_attempts", "5 tentativas") ?: "5 tentativas") }
+    var showNetworkStats by remember { mutableStateOf(prefs.getBoolean("network_stats", true)) }
+    var showPing by remember { mutableStateOf(prefs.getBoolean("show_ping", true)) }
+    var packetBuffer by remember { mutableStateOf(prefs.getString("packet_buffer", "Automático") ?: "Automático") }
+    var controllerVibration by remember { mutableStateOf(prefs.getBoolean("controller_vibration", true)) }
+    var triggerSensitivity by remember { mutableStateOf(prefs.getString("trigger_sensitivity", "Normal") ?: "Normal") }
+    var stickDeadzone by remember { mutableStateOf(prefs.getString("stick_deadzone", "Padrão (10%)") ?: "Padrão (10%)") }
+    var touchSize by remember { mutableStateOf(prefs.getString("touch_size", "Normal") ?: "Normal") }
+    var touchOpacity by remember { mutableStateOf(prefs.getString("touch_opacity", "75%") ?: "75%") }
+    var showButtonLabels by remember { mutableStateOf(prefs.getBoolean("button_labels", true)) }
+    var adaptiveTriggers by remember { mutableStateOf(prefs.getBoolean("adaptive_triggers", false)) }
+    var audioMuteOnBackground by remember { mutableStateOf(prefs.getBoolean("mute_background", true)) }
+    var spatialAudio by remember { mutableStateOf(prefs.getBoolean("spatial_audio", false)) }
+    var subtitles by remember { mutableStateOf(prefs.getBoolean("subtitles", false)) }
+    var subtitleSize by remember { mutableStateOf(prefs.getString("subtitle_size", "Médio") ?: "Médio") }
+    var reduceMotion by remember { mutableStateOf(prefs.getBoolean("reduce_motion", false)) }
+    var highContrast by remember { mutableStateOf(prefs.getBoolean("high_contrast", false)) }
+    var screenReaderHints by remember { mutableStateOf(prefs.getBoolean("screen_reader_hints", true)) }
+    var keepScreenOn by remember { mutableStateOf(prefs.getBoolean("keep_screen_on", true)) }
+    var launchFullscreen by remember { mutableStateOf(prefs.getBoolean("launch_fullscreen", true)) }
+    var allowBackgroundAudio by remember { mutableStateOf(prefs.getBoolean("background_audio", false)) }
+    var showResetDialog by remember { mutableStateOf(false) }
+    var feedback by remember { mutableStateOf("Todas as alterações são salvas automaticamente neste dispositivo.") }
+
+    fun saveString(key: String, value: String) { prefs.edit().putString(key, value).apply(); feedback = "Configuração salva: $value" }
+    fun saveBoolean(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply(); feedback = "Configuração atualizada." }
+
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            title = { Text("Restaurar configurações?") },
+            text = { Text("Todas as preferências do CloudPlay voltarão aos valores padrão. Sua conta e seus dados de login não serão apagados.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    prefs.edit().clear().apply()
+                    resolution = "Automática"; fsr = "Desativado"; videoFit = "Ajustar à tela"
+                    codec = "Automático"; fps = "Até 60 FPS"; performancePanel = true
+                    panelLayout = "Compacto"; sessionMenu = true; engine = "Automático"
+                    touchControls = true; vibration = true; interfaceSound = true; leftHanded = false
+                    controllerLayout = "Padrão"; stickSensitivity = "Normal"
+                    audioQuality = "Alta"; audioOutput = "Automática"; audioBalance = "Centralizado"
+                    region = "Automática"; networkMode = "Automático"; gameLanguage = "Português"; dataSaver = false
+                    appLanguage = "Português (Brasil)"; theme = "Escuro"; startupPage = "Início"
+                    notifications = true; friendNotifications = true; promotionalNotifications = false
+                    analytics = false; autoUpdates = true; clearCacheOnExit = false
+                    showOnlineStatus = true; confirmExit = true
+                    bitrate = "Automático"; reconnect = true; reconnectAttempts = "5 tentativas"
+                    showNetworkStats = true; showPing = true; packetBuffer = "Automático"
+                    controllerVibration = true; triggerSensitivity = "Normal"; stickDeadzone = "Padrão (10%)"
+                    touchSize = "Normal"; touchOpacity = "75%"; showButtonLabels = true; adaptiveTriggers = false
+                    audioMuteOnBackground = true; spatialAudio = false; subtitles = false; subtitleSize = "Médio"
+                    reduceMotion = false; highContrast = false; screenReaderHints = true
+                    keepScreenOn = true; launchFullscreen = true; allowBackgroundAudio = false
+                    feedback = "Configurações restauradas para o padrão."
+                    showResetDialog = false
+                }) { Text("Restaurar") }
+            },
+            dismissButton = { TextButton(onClick = { showResetDialog = false }) { Text("Cancelar") } }
+        )
+    }
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(bottom = 30.dp),
-        verticalArrangement = Arrangement.spacedBy(15.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+        contentPadding = PaddingValues(bottom = 34.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text(
-                text = "Configurações",
-                color = MainText,
-                fontSize = 25.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        item {
-            SettingsSection("Imagem") {
-                ChoiceSetting(
-                    title = "Resolução",
-                    value = quality,
-                    options = listOf("720p", "1080p", "1440p", "Automática"),
-                    onChange = { quality = it }
-                )
-
-                ChoiceSetting(
-                    title = "FSR",
-                    value = "Desativado",
-                    options = listOf("Desativado", "Qualidade", "Equilibrado", "Desempenho"),
-                    onChange = {}
-                )
-
-                ChoiceSetting(
-                    title = "Formato do vídeo",
-                    value = "Automático",
-                    options = listOf("Automático", "Preencher", "Ajustar à tela"),
-                    onChange = {}
-                )
-
-                ChoiceSetting(
-                    title = "Codec",
-                    value = "Automático",
-                    options = listOf("Automático", "H.264", "H.265", "AV1"),
-                    onChange = {}
-                )
+            Column {
+                Text("Configurações", color = MainText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                Text("Controle cada detalhe da sua experiência no CloudPlay", color = SecondaryText, fontSize = 12.sp)
+                Text(feedback, color = AccentColor, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
             }
         }
-
+        item { SettingsSection("Imagem e vídeo") {
+            ChoiceSetting("Resolução preferida", resolution, listOf("Automática", "720p", "1080p", "1440p")) { resolution = it; saveString("resolution", it) }
+            ChoiceSetting("Aprimoramento de imagem (FSR)", fsr, listOf("Desativado", "Qualidade", "Equilibrado", "Desempenho")) { fsr = it; saveString("fsr", it) }
+            ChoiceSetting("Ajuste da imagem", videoFit, listOf("Ajustar à tela", "Preencher tela", "Proporção original")) { videoFit = it; saveString("video_fit", it) }
+            ChoiceSetting("Codec de vídeo preferido", codec, listOf("Automático", "H.264", "H.265 / HEVC", "AV1")) { codec = it; saveString("codec", it) }
+            ChoiceSetting("Limite de quadros", fps, listOf("Até 30 FPS", "Até 60 FPS", "Até 120 FPS", "Automático")) { fps = it; saveString("fps", it) }
+        } }
+        item { SettingsSection("Desempenho e sessão") {
+            SettingSwitch("Painel de desempenho", performancePanel) { performancePanel = it; saveBoolean("performance_panel", it) }
+            ChoiceSetting("Layout do painel", panelLayout, listOf("Completo", "Compacto", "Mínimo")) { panelLayout = it; saveString("panel_layout", it) }
+            SettingSwitch("Menu durante a sessão", sessionMenu) { sessionMenu = it; saveBoolean("session_menu", it) }
+            ChoiceSetting("Motor de streaming", engine, listOf("Automático", "Compatibilidade", "Desempenho")) { engine = it; saveString("engine", it) }
+            SettingSwitch("Confirmar antes de sair de uma sessão", confirmExit) { confirmExit = it; saveBoolean("confirm_exit", it) }
+        } }
+        item { SettingsSection("Gamepad e controles") {
+            SettingSwitch("Controles virtuais no celular", touchControls) { touchControls = it; saveBoolean("touch_controls", it) }
+            SettingSwitch("Vibração", vibration) { vibration = it; saveBoolean("vibration", it) }
+            SettingSwitch("Sons da interface", interfaceSound) { interfaceSound = it; saveBoolean("interface_sound", it) }
+            SettingSwitch("Layout para canhotos", leftHanded) { leftHanded = it; saveBoolean("left_handed", it) }
+            ChoiceSetting("Layout do controle", controllerLayout, listOf("Padrão", "Alternativo", "Personalizado")) { controllerLayout = it; saveString("controller_layout", it) }
+            ChoiceSetting("Sensibilidade dos analógicos", stickSensitivity, listOf("Baixa", "Normal", "Alta")) { stickSensitivity = it; saveString("stick_sensitivity", it) }
+            Text("Em celulares, os controles virtuais poderão ser exibidos durante o jogo. Em Android TV, o foco é controle físico ou controle remoto.", color = SecondaryText, fontSize = 11.sp)
+        } }
+        item { SettingsSection("Áudio") {
+            ChoiceSetting("Qualidade preferida", audioQuality, listOf("Baixa", "Média", "Alta")) { audioQuality = it; saveString("audio_quality", it) }
+            ChoiceSetting("Saída de áudio", audioOutput, listOf("Automática", "Alto-falante", "Fones de ouvido")) { audioOutput = it; saveString("audio_output", it) }
+            ChoiceSetting("Balanço", audioBalance, listOf("Centralizado", "Priorizar esquerda", "Priorizar direita")) { audioBalance = it; saveString("audio_balance", it) }
+        } }
+        item { SettingsSection("Cloud e rede") {
+            ChoiceSetting("Região preferida", region, listOf("Automática", "Brasil", "América do Sul", "Estados Unidos", "Europa", "Ásia")) { region = it; saveString("region", it) }
+            ChoiceSetting("Modo de conexão", networkMode, listOf("Automático", "Estável", "Baixa latência", "Economizar dados")) { networkMode = it; saveString("network_mode", it) }
+            SettingSwitch("Economia de dados", dataSaver) { dataSaver = it; saveBoolean("data_saver", it) }
+            ChoiceSetting("Idioma preferido dos jogos", gameLanguage, listOf("Português", "English", "Español", "Francês", "Alemão", "Japonês")) { gameLanguage = it; saveString("game_language", it) }
+        } }
+        item { SettingsSection("Idioma e aparência") {
+            ChoiceSetting("Idioma do aplicativo", appLanguage, listOf("Português (Brasil)", "English", "Español")) { appLanguage = it; saveString("app_language", it) }
+            ChoiceSetting("Tema", theme, listOf("Escuro", "Claro", "Automático")) { theme = it; saveString("theme", it) }
+            ChoiceSetting("Página inicial", startupPage, listOf("Início", "Minha Biblioteca", "Pesquisar")) { startupPage = it; saveString("startup_page", it) }
+        } }
+        item { SettingsSection("Notificações e privacidade") {
+            SettingSwitch("Notificações do aplicativo", notifications) { notifications = it; saveBoolean("notifications", it) }
+            SettingSwitch("Avisos de amigos", friendNotifications) { friendNotifications = it; saveBoolean("friend_notifications", it) }
+            SettingSwitch("Novidades e promoções", promotionalNotifications) { promotionalNotifications = it; saveBoolean("promo_notifications", it) }
+            SettingSwitch("Compartilhar dados de diagnóstico", analytics) { analytics = it; saveBoolean("analytics", it) }
+            SettingSwitch("Mostrar meu status online", showOnlineStatus) { showOnlineStatus = it; saveBoolean("show_online_status", it) }
+        } }
+        item { SettingsSection("Armazenamento e atualizações") {
+            SettingSwitch("Verificar atualizações automaticamente", autoUpdates) { autoUpdates = it; saveBoolean("auto_updates", it) }
+            SettingSwitch("Limpar cache ao fechar o aplicativo", clearCacheOnExit) { clearCacheOnExit = it; saveBoolean("clear_cache_exit", it) }
+            Text("O gerenciamento e a limpeza real do cache serão conectados ao módulo de armazenamento do aplicativo.", color = SecondaryText, fontSize = 11.sp)
+        } }
+        item { SettingsSection("Qualidade avançada da transmissão") {
+            ChoiceSetting("Taxa de bits preferida", bitrate, listOf("Automático", "4 Mbps", "6 Mbps", "8 Mbps", "10 Mbps", "15 Mbps", "20 Mbps", "30 Mbps")) { bitrate = it; saveString("stream_bitrate", it) }
+            ChoiceSetting("Buffer de rede", packetBuffer, listOf("Automático", "Mínimo (baixa latência)", "Balanceado", "Maior estabilidade")) { packetBuffer = it; saveString("packet_buffer", it) }
+            SettingSwitch("Reconectar automaticamente após queda", reconnect) { reconnect = it; saveBoolean("auto_reconnect", it) }
+            ChoiceSetting("Tentativas de reconexão", reconnectAttempts, listOf("3 tentativas", "5 tentativas", "10 tentativas", "Ilimitadas")) { reconnectAttempts = it; saveString("reconnect_attempts", it) }
+            SettingSwitch("Exibir estatísticas de rede na sessão", showNetworkStats) { showNetworkStats = it; saveBoolean("network_stats", it) }
+            SettingSwitch("Exibir ping/latência", showPing) { showPing = it; saveBoolean("show_ping", it) }
+            Text("As escolhas ficam salvas para o futuro módulo de transmissão; bitrate, buffer e reconexão só terão efeito quando o player estiver conectado.", color = SecondaryText, fontSize = 11.sp)
+        } }
+        item { SettingsSection("Personalização do controle") {
+            ChoiceSetting("Zona morta dos analógicos", stickDeadzone, listOf("Pequena (5%)", "Padrão (10%)", "Média (15%)", "Alta (20%)")) { stickDeadzone = it; saveString("stick_deadzone", it) }
+            ChoiceSetting("Sensibilidade dos gatilhos", triggerSensitivity, listOf("Baixa", "Normal", "Alta")) { triggerSensitivity = it; saveString("trigger_sensitivity", it) }
+            SettingSwitch("Vibração do controle conectado", controllerVibration) { controllerVibration = it; saveBoolean("controller_vibration", it) }
+            SettingSwitch("Gatilhos adaptáveis (se compatível)", adaptiveTriggers) { adaptiveTriggers = it; saveBoolean("adaptive_triggers", it) }
+            Text("Mapeamento de botões: Padrão do Xbox. Editor de mapeamento personalizado será conectado ao módulo de entrada.", color = SecondaryText, fontSize = 11.sp)
+        } }
+        item { SettingsSection("Controles virtuais na tela") {
+            ChoiceSetting("Tamanho dos botões", touchSize, listOf("Pequeno", "Normal", "Grande", "Extra grande")) { touchSize = it; saveString("touch_size", it) }
+            ChoiceSetting("Opacidade dos controles", touchOpacity, listOf("25%", "50%", "75%", "100%")) { touchOpacity = it; saveString("touch_opacity", it) }
+            SettingSwitch("Mostrar letras dos botões", showButtonLabels) { showButtonLabels = it; saveBoolean("button_labels", it) }
+            Text("Inclui opções para posição, tamanho e transparência. O editor visual e o arraste dos botões serão ligados ao overlay de controles virtuais.", color = SecondaryText, fontSize = 11.sp)
+        } }
+        item { SettingsSection("Áudio e legendas") {
+            SettingSwitch("Silenciar áudio ao sair do aplicativo", audioMuteOnBackground) { audioMuteOnBackground = it; saveBoolean("mute_background", it) }
+            SettingSwitch("Áudio espacial (se compatível)", spatialAudio) { spatialAudio = it; saveBoolean("spatial_audio", it) }
+            SettingSwitch("Ativar legendas (se disponíveis no jogo)", subtitles) { subtitles = it; saveBoolean("subtitles", it) }
+            ChoiceSetting("Tamanho das legendas", subtitleSize, listOf("Pequeno", "Médio", "Grande", "Muito grande")) { subtitleSize = it; saveString("subtitle_size", it) }
+        } }
+        item { SettingsSection("Acessibilidade") {
+            SettingSwitch("Reduzir animações", reduceMotion) { reduceMotion = it; saveBoolean("reduce_motion", it) }
+            SettingSwitch("Alto contraste", highContrast) { highContrast = it; saveBoolean("high_contrast", it) }
+            SettingSwitch("Dicas para leitor de tela", screenReaderHints) { screenReaderHints = it; saveBoolean("screen_reader_hints", it) }
+        } }
+        item { SettingsSection("Tela e comportamento do aplicativo") {
+            SettingSwitch("Manter tela ligada durante o jogo", keepScreenOn) { keepScreenOn = it; saveBoolean("keep_screen_on", it) }
+            SettingSwitch("Iniciar em tela cheia", launchFullscreen) { launchFullscreen = it; saveBoolean("launch_fullscreen", it) }
+            SettingSwitch("Permitir áudio em segundo plano", allowBackgroundAudio) { allowBackgroundAudio = it; saveBoolean("background_audio", it) }
+            Text("A aplicação dessas preferências será feita pelos módulos de janela, ciclo de vida e player.", color = SecondaryText, fontSize = 11.sp)
+        } }
+        item { SettingsSection("Conta, suporte e aplicativo") {
+            Text("Conta Microsoft e Xbox", color = MainText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text("Acesse Perfil para conectar ou desconectar sua conta.", color = SecondaryText, fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            Text("Permissões e informações do Android", color = MainText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text("Abra as configurações do CloudPlay no Android para gerenciar permissões e notificações do sistema.", color = SecondaryText, fontSize = 12.sp)
+            OutlinedButton(onClick = {
+                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(intent)
+            }, modifier = Modifier.fillMaxWidth()) { Text("Abrir configurações do Android") }
+            Spacer(Modifier.height(5.dp))
+            Text("Sobre o CloudPlay", color = MainText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text("Aplicativo de interface de jogos em nuvem. As integrações de streaming e serviços externos serão conectadas em etapas posteriores.", color = SecondaryText, fontSize = 12.sp)
+        } }
         item {
-            SettingsSection("Desempenho") {
-                SettingSwitch(
-                    title = "Painel de desempenho",
-                    checked = true,
-                    onChange = {}
-                )
-
-                ChoiceSetting(
-                    title = "Layout do painel",
-                    value = "Completo",
-                    options = listOf("Completo", "Compacto", "Mínimo"),
-                    onChange = {}
-                )
-
-                SettingSwitch(
-                    title = "Menu durante a sessão",
-                    checked = true,
-                    onChange = {}
-                )
-
-                ChoiceSetting(
-                    title = "Motor de streaming",
-                    value = "Automático",
-                    options = listOf("Automático", "Compatibilidade", "Desempenho"),
-                    onChange = {}
-                )
+            OutlinedButton(onClick = { showResetDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Refresh, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Restaurar todas as configurações")
             }
-        }
-
-        item {
-            SettingsSection("Gamepad e controles") {
-                SettingSwitch(
-                    title = "Controles virtuais",
-                    checked = touchControls,
-                    onChange = { touchControls = it }
-                )
-
-                SettingSwitch(
-                    title = "Vibração",
-                    checked = vibration,
-                    onChange = { vibration = it }
-                )
-
-                SettingSwitch(
-                    title = "Sons da interface",
-                    checked = sound,
-                    onChange = { sound = it }
-                )
-            }
-        }
-
-        item {
-            SettingsSection("Áudio") {
-                ChoiceSetting(
-                    title = "Qualidade do áudio",
-                    value = "Alta",
-                    options = listOf("Baixa", "Média", "Alta"),
-                    onChange = {}
-                )
-
-                ChoiceSetting(
-                    title = "Saída de áudio",
-                    value = "Automática",
-                    options = listOf("Automática", "Alto-falante", "Fones de ouvido"),
-                    onChange = {}
-                )
-            }
-        }
-
-        item {
-            SettingsSection("Cloud") {
-                ChoiceSetting(
-                    title = "Região",
-                    value = region,
-                    options = listOf("Automática", "Brasil", "Estados Unidos", "Europa"),
-                    onChange = { region = it }
-                )
-
-                ChoiceSetting(
-                    title = "Idioma dos jogos",
-                    value = language,
-                    options = listOf("Português", "Inglês", "Espanhol"),
-                    onChange = { language = it }
-                )
-
-                SettingSwitch(
-                    title = "Economia de dados",
-                    checked = dataSaver,
-                    onChange = { dataSaver = it }
-                )
-            }
-        }
-
-        item {
-            SettingsSection("Preferências") {
-                ChoiceSetting(
-                    title = "Idioma do aplicativo",
-                    value = "Português",
-                    options = listOf("Português", "English", "Español"),
-                    onChange = {}
-                )
-            }
-        }
-
-        item {
-            Text(
-                text = "Algumas opções serão aplicadas à transmissão quando o motor de streaming estiver integrado.",
-                color = SecondaryText,
-                fontSize = 11.sp,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
+            Text("As preferências são salvas automaticamente neste dispositivo. Opções como resolução, FSR, codec, FPS, região e qualidade de áudio ficam preparadas e salvas, mas só controlarão a transmissão quando o player e o servidor de streaming forem integrados. A tela de configurações não cria nem fornece acesso ao Xbox Cloud Gaming.", color = SecondaryText, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }
