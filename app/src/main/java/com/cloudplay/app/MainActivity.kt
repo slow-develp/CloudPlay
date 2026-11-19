@@ -758,7 +758,7 @@ private fun CatalogPage(title: String) {
 
         Spacer(modifier = Modifier.height(18.dp))
 
-        XboxCatalogScreen()
+        CloudPlayXboxCatalogScreen()
     }
 }
 
@@ -807,7 +807,7 @@ private fun SearchPage() {
             shape = RoundedCornerShape(14.dp)
         )
 
-        XboxCatalogSearchScreen(query = query)
+        CloudPlayXboxCatalogSearchScreen(query = query)
     }
 }
 
@@ -904,12 +904,12 @@ private fun ProfileScreen(
 
 
 @Composable
-private fun XboxCatalogScreen() {
+private fun CloudPlayXboxCatalogScreen() {
     GameShelf("Catálogo de jogos", "Seleção demonstrativa exibida sem exigir login", listOf("Forza Horizon 5", "Halo Infinite", "Minecraft", "Fortnite", "Sea of Thieves", "Rocket League"))
 }
 
 @Composable
-private fun XboxCatalogSearchScreen(query: String) {
+private fun CloudPlayXboxCatalogSearchScreen(query: String) {
     val allGames = listOf("Forza Horizon 5", "Halo Infinite", "Minecraft", "Fortnite", "Sea of Thieves", "Rocket League", "Apex Legends", "GTA V", "Fall Guys", "Starfield")
     val results = allGames.filter { it.contains(query, ignoreCase = true) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
