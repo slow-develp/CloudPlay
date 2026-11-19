@@ -2,6 +2,7 @@
 package com.cloudplay.app
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.content.Intent
 import android.net.Uri
@@ -14,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
@@ -28,12 +30,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.URL
 
 private val BackgroundColor = Color(0xFF090B10)
 private val SurfaceColor = Color(0xFF151922)
@@ -159,7 +166,7 @@ fun CloudPlayApp(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(BackgroundColor)
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .then(if (isTv) Modifier else Modifier.windowInsetsPadding(WindowInsets.safeDrawing))
             ) {
                 if (isTv) {
                     TvInterface(
@@ -221,92 +228,147 @@ private fun TvInterface(
     onLogin: () -> Unit,
     onLogout: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BackgroundColor)
-    ) {
-        Column(
-            modifier = Modifier
-                .width(190.dp)
-                .fillMaxHeight()
-                .background(Color(0xFF10141C))
-                .padding(20.dp)
+    if (page == "Início") {
+        ReferenceTvHome(
+            account = account,
+            onPageChange = onPageChange,
+            onLogin = onXboxLogin
+        )
+    } else {
+        Row(
+            modifier = Modifier.fillMaxSize().background(BackgroundColor)
         ) {
-            CloudLogo()
-
-            Spacer(modifier = Modifier.height(35.dp))
-
-            menuItems.forEach { item ->
-                NavigationItem(
-                    title = item,
-                    selected = page == item,
-                    onClick = { onPageChange(item) },
-                    isTv = true
-                )
+            Column(
+                modifier = Modifier.width(190.dp).fillMaxHeight()
+                    .background(Color(0xFF10141C)).padding(20.dp)
+            ) {
+                CloudLogo()
+                Spacer(modifier = Modifier.height(35.dp))
+                menuItems.forEach { item ->
+                    NavigationItem(
+                        title = item,
+                        selected = page == item,
+                        onClick = { onPageChange(item) },
+                        isTv = true
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Text("CLOUDPLAY", color = SecondaryText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("Sua experiência de jogos", color = SecondaryText, fontSize = 10.sp)
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Text(
-                text = "CLOUDPLAY",
-                color = SecondaryText,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Sua experiência de jogos",
-                color = SecondaryText,
-                fontSize = 10.sp
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 28.dp, vertical = 20.dp)
-        ) {
-            Header(
-                account = account,
-                photo = photo,
-                onProfile = { onPageChange("Perfil") },
-                onLogin = onXboxLogin
-            )
-
-            Spacer(modifier = Modifier.height(22.dp))
-
-            when (page) {
-                "Início" -> HomeScreen(isTv = true, xboxConnected = xboxConnected)
-
-                "Minha Biblioteca" -> CatalogPage(
-                    title = "Minha Biblioteca"
-                )
-
-                "Game Pass" -> GamePassPage()
-
-                "Loja" -> StorePage()
-
-                "Amigos" -> FriendsPage()
-
-                "Notificações" -> NotificationsPage()
-
-                "Pesquisar" -> SearchPage()
-
-                "Perfil" -> ProfileScreen(
+            Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 20.dp)
+            ) {
+                Header(
                     account = account,
                     photo = photo,
-                    notice = notice,
-                    xboxConnected = xboxConnected,
-                    xboxNotice = xboxNotice,
-                    onXboxLogin = onXboxLogin,
-                    onXboxLogout = onXboxLogout,
-                    onLogin = onLogin,
-                    onLogout = onLogout
+                    onProfile = { onPageChange("Perfil") },
+                    onLogin = onXboxLogin
                 )
+                Spacer(modifier = Modifier.height(22.dp))
+                when (page) {
+                    "Minha Biblioteca" -> CatalogPage(title = "Minha Biblioteca")
+                    "Game Pass" -> GamePassPage()
+                    "Loja" -> StorePage()
+                    "Amigos" -> FriendsPage()
+                    "Notificações" -> NotificationsPage()
+                    "Pesquisar" -> SearchPage()
+                    "Perfil" -> ProfileScreen(
+                        account = account, photo = photo, notice = notice,
+                        xboxConnected = xboxConnected, xboxNotice = xboxNotice,
+                        onXboxLogin = onXboxLogin, onXboxLogout = onXboxLogout,
+                        onLogin = onLogin, onLogout = onLogout
+                    )
+                    "Configurações" -> SettingsPage()
+                    else -> HomeScreen(isTv = true, xboxConnected = xboxConnected)
+                }
+            }
+        }
+    }
+}
 
-                "Configurações" -> SettingsPage()
+@Composable
+private fun ReferenceTvHome(
+    account: String?,
+    onPageChange: (String) -> Unit,
+    onLogin: () -> Unit
+) {
+    val imageUrl = "https://i.ibb.co/XxL2Sf9w/file-000000001eb4820e95a1d62f6e2c5355.webp"
+    var referenceBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var loadFailed by remember { mutableStateOf(false) }
+    var reloadKey by remember { mutableStateOf(0) }
 
-                else -> HomeScreen(isTv = true, xboxConnected = xboxConnected)
+    LaunchedEffect(imageUrl, reloadKey) {
+        val loaded = withContext(Dispatchers.IO) {
+            runCatching {
+                val connection = URL(imageUrl).openConnection().apply {
+                    connectTimeout = 12000
+                    readTimeout = 15000
+                    setRequestProperty("User-Agent", "CloudPlay/1.0 Android")
+                }
+                connection.getInputStream().use { BitmapFactory.decodeStream(it) }
+            }.getOrNull()
+        }
+        referenceBitmap = loaded
+        loadFailed = loaded == null
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+        val w = maxWidth
+        val h = maxHeight
+        if (referenceBitmap != null) {
+            Image(
+                bitmap = referenceBitmap!!.asImageBitmap(),
+                contentDescription = "Tela inicial de referência do CloudPlay",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            // Zonas clicáveis transparentes sobre a própria imagem de referência.
+            fun zone(x: Float, y: Float, width: Float, height: Float, action: () -> Unit): Modifier =
+                Modifier.offset(x = w * x, y = h * y).size(width = w * width, height = h * height)
+                    .clip(RoundedCornerShape(8.dp)).clickable(onClick = action).focusable()
+
+            Box(zone(0.010f, 0.241f, 0.139f, 0.075f) { onPageChange("Início") })
+            Box(zone(0.010f, 0.337f, 0.139f, 0.066f) { onPageChange("Minha Biblioteca") })
+            Box(zone(0.010f, 0.405f, 0.139f, 0.067f) { onPageChange("Game Pass") })
+            Box(zone(0.010f, 0.472f, 0.139f, 0.067f) { onPageChange("Pesquisar") })
+            Box(zone(0.010f, 0.540f, 0.139f, 0.067f) { onPageChange("Loja") })
+            Box(zone(0.010f, 0.607f, 0.139f, 0.067f) { onPageChange("Configurações") })
+            Box(zone(0.735f, 0.000f, 0.045f, 0.090f) { onPageChange("Pesquisar") })
+            Box(zone(0.785f, 0.000f, 0.050f, 0.090f) { onPageChange("Notificações") })
+            Box(zone(0.835f, 0.000f, 0.155f, 0.090f) { if (account.isNullOrBlank()) onLogin() else onPageChange("Perfil") })
+            Box(zone(0.190f, 0.315f, 0.145f, 0.085f) { onPageChange("Game Pass") })
+            Box(zone(0.350f, 0.315f, 0.050f, 0.085f) { onPageChange("Game Pass") })
+            Box(zone(0.905f, 0.420f, 0.085f, 0.055f) { onPageChange("Game Pass") })
+            Box(zone(0.905f, 0.745f, 0.085f, 0.055f) { onPageChange("Minha Biblioteca") })
+            // Cartões da primeira fileira do Game Pass.
+            val firstRowX = listOf(0.177f, 0.300f, 0.412f, 0.533f, 0.647f, 0.759f, 0.871f)
+            firstRowX.forEach { x -> Box(zone(x, 0.485f, 0.112f, 0.235f) { onPageChange("Game Pass") }) }
+            // Cartões da fileira Em Alta.
+            val secondRowX = listOf(0.177f, 0.300f, 0.412f, 0.533f, 0.647f, 0.759f, 0.871f)
+            secondRowX.forEach { x -> Box(zone(x, 0.805f, 0.112f, 0.195f) { onPageChange("Minha Biblioteca") }) }
+
+            if (!account.isNullOrBlank()) {
+                Box(
+                    Modifier.offset(x = w * 0.855f, y = h * 0.018f).width(w * 0.115f).height(h * 0.055f)
+                        .clip(RoundedCornerShape(20.dp)).background(Color(0xEE10151D)).padding(horizontal = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(account, color = Color.White, fontSize = 11.sp, maxLines = 1)
+                }
+            }
+        } else {
+            Column(
+                Modifier.fillMaxSize().padding(30.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(if (loadFailed) "Não foi possível carregar a imagem da tela inicial." else "Carregando tela inicial…", color = Color.White, fontSize = 18.sp)
+                Spacer(Modifier.height(12.dp))
+                Text("Verifique a conexão com a internet e tente novamente.", color = SecondaryText, fontSize = 12.sp)
+                Spacer(Modifier.height(18.dp))
+                Button(onClick = { referenceBitmap = null; loadFailed = false; reloadKey++ }) { Text("Tentar novamente") }
+                TextButton(onClick = { onPageChange("Configurações") }) { Text("Abrir configurações") }
             }
         }
     }
@@ -600,42 +662,31 @@ private fun HomeScreen(isTv: Boolean, xboxConnected: Boolean = false) {
             }
         }
 
-        if (xboxConnected) {
-            item {
-                Text(
-                    text = "Jogados recentemente",
-                    color = MainText,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold
-                )
+        item {
+            GameShelf(
+                title = "Game Pass",
+                subtitle = "Jogos em destaque na seleção CloudPlay",
+                games = listOf("Forza Horizon 5", "Halo Infinite", "Minecraft", "Sea of Thieves", "Starfield")
+            )
+        }
+        item {
+            GameShelf(
+                title = "Jogos em alta",
+                subtitle = "Títulos populares para descobrir",
+                games = listOf("Fortnite", "Rocket League", "Apex Legends", "GTA V", "Fall Guys")
+            )
+        }
+        item {
+            if (xboxConnected) {
                 ActionCard(
-                    title = "Sua atividade Xbox",
-                    description = "Seus jogos recentes aparecerão aqui quando a integração de atividade Xbox estiver disponível.",
-                    icon = Icons.Default.History
+                    title = "Conta Xbox conectada",
+                    description = "Sua conta está conectada. Os dados reais de biblioteca, amigos e conquistas dependem das integrações correspondentes.",
+                    icon = Icons.Default.VerifiedUser
                 )
-            }
-            item {
+            } else {
                 ActionCard(
-                    title = "Minha biblioteca",
-                    description = "Acesse seus jogos associados à conta conectada.",
-                    icon = Icons.Default.SportsEsports
-                )
-            }
-        } else {
-            item {
-                Text(
-                    text = "Catálogo Xbox",
-                    color = MainText,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                XboxCatalogScreen()
-            }
-            item {
-                ActionCard(
-                    title = "Sua biblioteca",
-                    description = "Conecte sua conta Xbox para personalizar sua biblioteca.",
+                    title = "Conecte sua conta Microsoft + Xbox",
+                    description = "A conexão da conta poderá personalizar os recursos compatíveis do CloudPlay.",
                     icon = Icons.Default.SportsEsports
                 )
             }
@@ -851,6 +902,22 @@ private fun ProfileScreen(
     }
 }
 
+
+@Composable
+private fun XboxCatalogScreen() {
+    GameShelf("Catálogo de jogos", "Seleção demonstrativa exibida sem exigir login", listOf("Forza Horizon 5", "Halo Infinite", "Minecraft", "Fortnite", "Sea of Thieves", "Rocket League"))
+}
+
+@Composable
+private fun XboxCatalogSearchScreen(query: String) {
+    val allGames = listOf("Forza Horizon 5", "Halo Infinite", "Minecraft", "Fortnite", "Sea of Thieves", "Rocket League", "Apex Legends", "GTA V", "Fall Guys", "Starfield")
+    val results = allGames.filter { it.contains(query, ignoreCase = true) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (results.isEmpty()) Text("Nenhum jogo encontrado.", color = SecondaryText)
+        else results.forEach { ActionCard(it, "Disponibilidade e forma de jogar dependem do serviço e da licença.", Icons.Default.SportsEsports) }
+    }
+}
+
 @Composable
 private fun GamePassPage() {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -1038,6 +1105,7 @@ private fun SettingsPage() {
     var launchFullscreen by remember { mutableStateOf(prefs.getBoolean("launch_fullscreen", true)) }
     var allowBackgroundAudio by remember { mutableStateOf(prefs.getBoolean("background_audio", false)) }
     var showResetDialog by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
     var feedback by remember { mutableStateOf("Todas as alterações são salvas automaticamente neste dispositivo.") }
 
     fun saveString(key: String, value: String) { prefs.edit().putString(key, value).apply(); feedback = "Configuração salva: $value" }
@@ -1082,13 +1150,60 @@ private fun SettingsPage() {
         contentPadding = PaddingValues(bottom = 34.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item {
-            Column {
-                Text("Configurações", color = MainText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                Text("Controle cada detalhe da sua experiência no CloudPlay", color = SecondaryText, fontSize = 12.sp)
-                Text(feedback, color = AccentColor, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+        if (selectedCategory == null) {
+            item {
+                Column {
+                    Text("Configurações", color = MainText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                    Text("Escolha uma categoria para ver e alterar suas opções.", color = SecondaryText, fontSize = 12.sp)
+                    Text(feedback, color = AccentColor, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+            val categories = listOf(
+                Triple("Imagem e vídeo", "Resolução, qualidade, codec e FPS", Icons.Default.Image),
+                Triple("Desempenho e sessão", "Painel, motor e opções durante o jogo", Icons.Default.Settings),
+                Triple("Gamepad e controles", "Controles físicos, layout e sensibilidade", Icons.Default.SportsEsports),
+                Triple("Personalização do controle", "Zona morta, gatilhos e vibração", Icons.Default.SportsEsports),
+                Triple("Controles virtuais na tela", "Tamanho, opacidade e identificação dos botões", Icons.Default.SportsEsports),
+                Triple("Áudio", "Qualidade, saída e balanço", Icons.Default.Notifications),
+                Triple("Áudio e legendas", "Áudio espacial, segundo plano e legendas", Icons.Default.Notifications),
+                Triple("Cloud e rede", "Região, conexão e economia de dados", Icons.Default.Cloud),
+                Triple("Qualidade avançada da transmissão", "Bitrate, buffer, ping e reconexão", Icons.Default.Cloud),
+                Triple("Idioma e aparência", "Idioma, tema e página inicial", Icons.Default.Palette),
+                Triple("Notificações e privacidade", "Alertas, diagnóstico e status online", Icons.Default.Notifications),
+                Triple("Armazenamento e atualizações", "Atualizações e cache", Icons.Default.Settings),
+                Triple("Acessibilidade", "Animações, contraste e leitor de tela", Icons.Default.Person),
+                Triple("Tela e comportamento do aplicativo", "Tela ligada, tela cheia e áudio em segundo plano", Icons.Default.Settings),
+                Triple("Conta, suporte e aplicativo", "Conta, permissões e informações", Icons.Default.AccountCircle)
+            )
+            categories.forEach { category ->
+                item {
+                    SettingsCategoryCard(category.first, category.second, category.third) {
+                        selectedCategory = category.first
+                    }
+                }
+            }
+            item {
+                OutlinedButton(onClick = { showResetDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Restaurar todas as configurações")
+                }
+            }
+        } else {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    IconButton(onClick = { selectedCategory = null }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Voltar às categorias", tint = MainText)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(selectedCategory ?: "Configurações", color = MainText, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Text("As opções desta categoria aparecem somente nesta tela.", color = SecondaryText, fontSize = 11.sp)
+                    }
+                }
+                Text(feedback, color = AccentColor, fontSize = 11.sp)
             }
         }
+        if (selectedCategory == "Imagem e vídeo") {
         item { SettingsSection("Imagem e vídeo") {
             ChoiceSetting("Resolução preferida", resolution, listOf("Automática", "720p", "1080p", "1440p")) { resolution = it; saveString("resolution", it) }
             ChoiceSetting("Aprimoramento de imagem (FSR)", fsr, listOf("Desativado", "Qualidade", "Equilibrado", "Desempenho")) { fsr = it; saveString("fsr", it) }
@@ -1096,6 +1211,8 @@ private fun SettingsPage() {
             ChoiceSetting("Codec de vídeo preferido", codec, listOf("Automático", "H.264", "H.265 / HEVC", "AV1")) { codec = it; saveString("codec", it) }
             ChoiceSetting("Limite de quadros", fps, listOf("Até 30 FPS", "Até 60 FPS", "Até 120 FPS", "Automático")) { fps = it; saveString("fps", it) }
         } }
+        }
+        if (selectedCategory == "Desempenho e sessão") {
         item { SettingsSection("Desempenho e sessão") {
             SettingSwitch("Painel de desempenho", performancePanel) { performancePanel = it; saveBoolean("performance_panel", it) }
             ChoiceSetting("Layout do painel", panelLayout, listOf("Completo", "Compacto", "Mínimo")) { panelLayout = it; saveString("panel_layout", it) }
@@ -1103,6 +1220,8 @@ private fun SettingsPage() {
             ChoiceSetting("Motor de streaming", engine, listOf("Automático", "Compatibilidade", "Desempenho")) { engine = it; saveString("engine", it) }
             SettingSwitch("Confirmar antes de sair de uma sessão", confirmExit) { confirmExit = it; saveBoolean("confirm_exit", it) }
         } }
+        }
+        if (selectedCategory == "Gamepad e controles") {
         item { SettingsSection("Gamepad e controles") {
             SettingSwitch("Controles virtuais no celular", touchControls) { touchControls = it; saveBoolean("touch_controls", it) }
             SettingSwitch("Vibração", vibration) { vibration = it; saveBoolean("vibration", it) }
@@ -1112,22 +1231,30 @@ private fun SettingsPage() {
             ChoiceSetting("Sensibilidade dos analógicos", stickSensitivity, listOf("Baixa", "Normal", "Alta")) { stickSensitivity = it; saveString("stick_sensitivity", it) }
             Text("Em celulares, os controles virtuais poderão ser exibidos durante o jogo. Em Android TV, o foco é controle físico ou controle remoto.", color = SecondaryText, fontSize = 11.sp)
         } }
+        }
+        if (selectedCategory == "Áudio") {
         item { SettingsSection("Áudio") {
             ChoiceSetting("Qualidade preferida", audioQuality, listOf("Baixa", "Média", "Alta")) { audioQuality = it; saveString("audio_quality", it) }
             ChoiceSetting("Saída de áudio", audioOutput, listOf("Automática", "Alto-falante", "Fones de ouvido")) { audioOutput = it; saveString("audio_output", it) }
             ChoiceSetting("Balanço", audioBalance, listOf("Centralizado", "Priorizar esquerda", "Priorizar direita")) { audioBalance = it; saveString("audio_balance", it) }
         } }
+        }
+        if (selectedCategory == "Cloud e rede") {
         item { SettingsSection("Cloud e rede") {
             ChoiceSetting("Região preferida", region, listOf("Automática", "Brasil", "América do Sul", "Estados Unidos", "Europa", "Ásia")) { region = it; saveString("region", it) }
             ChoiceSetting("Modo de conexão", networkMode, listOf("Automático", "Estável", "Baixa latência", "Economizar dados")) { networkMode = it; saveString("network_mode", it) }
             SettingSwitch("Economia de dados", dataSaver) { dataSaver = it; saveBoolean("data_saver", it) }
             ChoiceSetting("Idioma preferido dos jogos", gameLanguage, listOf("Português", "English", "Español", "Francês", "Alemão", "Japonês")) { gameLanguage = it; saveString("game_language", it) }
         } }
+        }
+        if (selectedCategory == "Idioma e aparência") {
         item { SettingsSection("Idioma e aparência") {
             ChoiceSetting("Idioma do aplicativo", appLanguage, listOf("Português (Brasil)", "English", "Español")) { appLanguage = it; saveString("app_language", it) }
             ChoiceSetting("Tema", theme, listOf("Escuro", "Claro", "Automático")) { theme = it; saveString("theme", it) }
             ChoiceSetting("Página inicial", startupPage, listOf("Início", "Minha Biblioteca", "Pesquisar")) { startupPage = it; saveString("startup_page", it) }
         } }
+        }
+        if (selectedCategory == "Notificações e privacidade") {
         item { SettingsSection("Notificações e privacidade") {
             SettingSwitch("Notificações do aplicativo", notifications) { notifications = it; saveBoolean("notifications", it) }
             SettingSwitch("Avisos de amigos", friendNotifications) { friendNotifications = it; saveBoolean("friend_notifications", it) }
@@ -1135,11 +1262,15 @@ private fun SettingsPage() {
             SettingSwitch("Compartilhar dados de diagnóstico", analytics) { analytics = it; saveBoolean("analytics", it) }
             SettingSwitch("Mostrar meu status online", showOnlineStatus) { showOnlineStatus = it; saveBoolean("show_online_status", it) }
         } }
+        }
+        if (selectedCategory == "Armazenamento e atualizações") {
         item { SettingsSection("Armazenamento e atualizações") {
             SettingSwitch("Verificar atualizações automaticamente", autoUpdates) { autoUpdates = it; saveBoolean("auto_updates", it) }
             SettingSwitch("Limpar cache ao fechar o aplicativo", clearCacheOnExit) { clearCacheOnExit = it; saveBoolean("clear_cache_exit", it) }
             Text("O gerenciamento e a limpeza real do cache serão conectados ao módulo de armazenamento do aplicativo.", color = SecondaryText, fontSize = 11.sp)
         } }
+        }
+        if (selectedCategory == "Qualidade avançada da transmissão") {
         item { SettingsSection("Qualidade avançada da transmissão") {
             ChoiceSetting("Taxa de bits preferida", bitrate, listOf("Automático", "4 Mbps", "6 Mbps", "8 Mbps", "10 Mbps", "15 Mbps", "20 Mbps", "30 Mbps")) { bitrate = it; saveString("stream_bitrate", it) }
             ChoiceSetting("Buffer de rede", packetBuffer, listOf("Automático", "Mínimo (baixa latência)", "Balanceado", "Maior estabilidade")) { packetBuffer = it; saveString("packet_buffer", it) }
@@ -1149,6 +1280,8 @@ private fun SettingsPage() {
             SettingSwitch("Exibir ping/latência", showPing) { showPing = it; saveBoolean("show_ping", it) }
             Text("As escolhas ficam salvas para o futuro módulo de transmissão; bitrate, buffer e reconexão só terão efeito quando o player estiver conectado.", color = SecondaryText, fontSize = 11.sp)
         } }
+        }
+        if (selectedCategory == "Personalização do controle") {
         item { SettingsSection("Personalização do controle") {
             ChoiceSetting("Zona morta dos analógicos", stickDeadzone, listOf("Pequena (5%)", "Padrão (10%)", "Média (15%)", "Alta (20%)")) { stickDeadzone = it; saveString("stick_deadzone", it) }
             ChoiceSetting("Sensibilidade dos gatilhos", triggerSensitivity, listOf("Baixa", "Normal", "Alta")) { triggerSensitivity = it; saveString("trigger_sensitivity", it) }
@@ -1156,29 +1289,39 @@ private fun SettingsPage() {
             SettingSwitch("Gatilhos adaptáveis (se compatível)", adaptiveTriggers) { adaptiveTriggers = it; saveBoolean("adaptive_triggers", it) }
             Text("Mapeamento de botões: Padrão do Xbox. Editor de mapeamento personalizado será conectado ao módulo de entrada.", color = SecondaryText, fontSize = 11.sp)
         } }
+        }
+        if (selectedCategory == "Controles virtuais na tela") {
         item { SettingsSection("Controles virtuais na tela") {
             ChoiceSetting("Tamanho dos botões", touchSize, listOf("Pequeno", "Normal", "Grande", "Extra grande")) { touchSize = it; saveString("touch_size", it) }
             ChoiceSetting("Opacidade dos controles", touchOpacity, listOf("25%", "50%", "75%", "100%")) { touchOpacity = it; saveString("touch_opacity", it) }
             SettingSwitch("Mostrar letras dos botões", showButtonLabels) { showButtonLabels = it; saveBoolean("button_labels", it) }
             Text("Inclui opções para posição, tamanho e transparência. O editor visual e o arraste dos botões serão ligados ao overlay de controles virtuais.", color = SecondaryText, fontSize = 11.sp)
         } }
+        }
+        if (selectedCategory == "Áudio e legendas") {
         item { SettingsSection("Áudio e legendas") {
             SettingSwitch("Silenciar áudio ao sair do aplicativo", audioMuteOnBackground) { audioMuteOnBackground = it; saveBoolean("mute_background", it) }
             SettingSwitch("Áudio espacial (se compatível)", spatialAudio) { spatialAudio = it; saveBoolean("spatial_audio", it) }
             SettingSwitch("Ativar legendas (se disponíveis no jogo)", subtitles) { subtitles = it; saveBoolean("subtitles", it) }
             ChoiceSetting("Tamanho das legendas", subtitleSize, listOf("Pequeno", "Médio", "Grande", "Muito grande")) { subtitleSize = it; saveString("subtitle_size", it) }
         } }
+        }
+        if (selectedCategory == "Acessibilidade") {
         item { SettingsSection("Acessibilidade") {
             SettingSwitch("Reduzir animações", reduceMotion) { reduceMotion = it; saveBoolean("reduce_motion", it) }
             SettingSwitch("Alto contraste", highContrast) { highContrast = it; saveBoolean("high_contrast", it) }
             SettingSwitch("Dicas para leitor de tela", screenReaderHints) { screenReaderHints = it; saveBoolean("screen_reader_hints", it) }
         } }
+        }
+        if (selectedCategory == "Tela e comportamento do aplicativo") {
         item { SettingsSection("Tela e comportamento do aplicativo") {
             SettingSwitch("Manter tela ligada durante o jogo", keepScreenOn) { keepScreenOn = it; saveBoolean("keep_screen_on", it) }
             SettingSwitch("Iniciar em tela cheia", launchFullscreen) { launchFullscreen = it; saveBoolean("launch_fullscreen", it) }
             SettingSwitch("Permitir áudio em segundo plano", allowBackgroundAudio) { allowBackgroundAudio = it; saveBoolean("background_audio", it) }
             Text("A aplicação dessas preferências será feita pelos módulos de janela, ciclo de vida e player.", color = SecondaryText, fontSize = 11.sp)
         } }
+        }
+        if (selectedCategory == "Conta, suporte e aplicativo") {
         item { SettingsSection("Conta, suporte e aplicativo") {
             Text("Conta Microsoft e Xbox", color = MainText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Text("Acesse Perfil para conectar ou desconectar sua conta.", color = SecondaryText, fontSize = 12.sp)
@@ -1195,14 +1338,68 @@ private fun SettingsPage() {
             Text("Sobre o CloudPlay", color = MainText, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Text("Aplicativo de interface de jogos em nuvem. As integrações de streaming e serviços externos serão conectadas em etapas posteriores.", color = SecondaryText, fontSize = 12.sp)
         } }
-        item {
-            OutlinedButton(onClick = { showResetDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Refresh, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Restaurar todas as configurações")
-            }
-            Text("As preferências são salvas automaticamente neste dispositivo. Opções como resolução, FSR, codec, FPS, região e qualidade de áudio ficam preparadas e salvas, mas só controlarão a transmissão quando o player e o servidor de streaming forem integrados. A tela de configurações não cria nem fornece acesso ao Xbox Cloud Gaming.", color = SecondaryText, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
         }
+        if (selectedCategory != null) {
+            item {
+                OutlinedButton(onClick = { showResetDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Restaurar todas as configurações")
+                }
+                Text("As preferências são salvas neste dispositivo. Algumas opções só terão efeito quando os módulos de transmissão, áudio e controles forem conectados.", color = SecondaryText, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun GameShelf(title: String, subtitle: String, games: List<String>) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(title, color = MainText, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+        Text(subtitle, color = SecondaryText, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp, bottom = 10.dp))
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            games.forEachIndexed { index, game ->
+                Column(
+                    Modifier.width(150.dp).clip(RoundedCornerShape(13.dp)).background(SurfaceColor)
+                        .clickable { }.padding(10.dp)
+                ) {
+                    Box(
+                        Modifier.fillMaxWidth().height(82.dp).clip(RoundedCornerShape(9.dp))
+                            .background(Brush.horizontalGradient(listOf(Color(0xFF203A35), Color(0xFF243047), Color(0xFF151922)))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.SportsEsports, contentDescription = null, tint = AccentColor, modifier = Modifier.size(30.dp))
+                    }
+                    Text(game, color = MainText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(top = 8.dp))
+                    Text(if (index % 2 == 0) "Destaque" else "Popular", color = SecondaryText, fontSize = 10.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsCategoryCard(
+    title: String,
+    description: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(SurfaceColor)
+            .clickable(onClick = onClick).focusable().padding(horizontal = 15.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(SurfaceLight), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = AccentColor)
+        }
+        Spacer(Modifier.width(13.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = MainText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(description, color = SecondaryText, fontSize = 11.sp)
+        }
+        Icon(Icons.Default.ArrowDropDown, contentDescription = "Abrir $title", tint = SecondaryText)
     }
 }
 
