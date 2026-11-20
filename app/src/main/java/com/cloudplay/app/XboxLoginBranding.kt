@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.sp
 
 /**
  * Branded sign-in panel for CloudPlay.
- * Place it in the login/profile area and pass onMicrosoftLogin = { xboxAuth.signIn() }.
+ * Place it in the login/profile area and pass onMicrosoftLogin = { microsoftAuth.signIn() }.
  */
 @Composable
 fun XboxLoginBranding(
