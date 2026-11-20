@@ -67,31 +67,28 @@ private fun Modifier.tvFocusIndicator(
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var xboxAuth: XboxNetworkAuth
+    private lateinit var microsoftAuth: MicrosoftAuth
 
-    var xboxConnected by mutableStateOf(false)
+    var accountInfo by mutableStateOf<MicrosoftAccountInfo?>(null)
         private set
-    var xboxUserHash by mutableStateOf("")
+    var profilePhoto by mutableStateOf<Bitmap?>(null)
         private set
-    var xboxNotice by mutableStateOf("Conecte sua conta Xbox.")
+    var authNotice by mutableStateOf("")
+        private set
+    var sessionExpired by mutableStateOf(false)
         private set
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        xboxAuth = XboxNetworkAuth(
+        // Login Microsoft via MSAL (não é autenticação Xbox Live/XSTS).
+        microsoftAuth = MicrosoftAuth(
             activity = this,
-            onStatus = { message -> xboxNotice = message },
-            onConnected = { userHash ->
-                xboxConnected = true
-                xboxUserHash = userHash
-            },
-            onDisconnected = {
-                xboxConnected = false
-                xboxUserHash = ""
-            }
+            onAccountChanged = { info -> accountInfo = info },
+            onMessage = { message -> authNotice = message },
+            onPhotoLoaded = { bitmap -> profilePhoto = bitmap },
+            onSessionExpired = { expired -> sessionExpired = expired }
         )
-        xboxAuth.handleIntent(intent)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = android.graphics.Color.TRANSPARENT
@@ -109,60 +106,43 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             CloudPlayApp(
-                xboxAuth = xboxAuth,
-                xboxConnected = xboxConnected,
-                xboxNotice = xboxNotice
+                accountInfo = accountInfo,
+                profilePhoto = profilePhoto,
+                notice = authNotice,
+                sessionExpired = sessionExpired,
+                onLogin = { microsoftAuth.signIn() },
+                onLogout = { microsoftAuth.signOut() }
             )
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        xboxAuth.handleIntent(intent)
+    override fun onResume() {
+        super.onResume()
+        // Renova silenciosamente e detecta expiração da sessão ao voltar ao app.
+        if (::microsoftAuth.isInitialized) microsoftAuth.refreshSession()
     }
 
     override fun onDestroy() {
-        if (::xboxAuth.isInitialized) xboxAuth.close()
+        if (::microsoftAuth.isInitialized) microsoftAuth.close()
         super.onDestroy()
     }
 }
 
 @Composable
 fun CloudPlayApp(
-    xboxAuth: XboxNetworkAuth,
-    xboxConnected: Boolean,
-    xboxNotice: String
+    accountInfo: MicrosoftAccountInfo?,
+    profilePhoto: Bitmap?,
+    notice: String,
+    sessionExpired: Boolean,
+    onLogin: () -> Unit,
+    onLogout: () -> Unit
 ) {
-    val activity = androidx.compose.ui.platform.LocalContext.current as ComponentActivity
     val configuration = LocalConfiguration.current
     val isTv = configuration.screenWidthDp >= 700
 
-    var account by remember { mutableStateOf<String?>(null) }
-    var notice by remember { mutableStateOf("") }
-    var profilePhoto by remember { mutableStateOf<Bitmap?>(null) }
     var currentPage by remember { mutableStateOf("Início") }
 
-    val displayAccount = account ?: if (xboxConnected) "Xbox conectado" else null
-
-    val auth = remember {
-        MicrosoftAuth(
-            activity = activity,
-            onSignedIn = { username ->
-                account = username
-            },
-            onSignedOut = {
-                account = null
-                profilePhoto = null
-            },
-            onMessage = { message ->
-                notice = message
-            },
-            onPhotoLoaded = { bitmap ->
-                profilePhoto = bitmap
-            }
-        )
-    }
+    val displayAccount = accountInfo?.displayName
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -189,28 +169,24 @@ fun CloudPlayApp(
                         page = currentPage,
                         onPageChange = { currentPage = it },
                         account = displayAccount,
+                        accountInfo = accountInfo,
                         photo = profilePhoto,
                         notice = notice,
-                        xboxConnected = xboxConnected,
-                        xboxNotice = xboxNotice,
-                        onXboxLogin = { xboxAuth.signIn() },
-                        onXboxLogout = { xboxAuth.signOut() },
-                        onLogin = { auth.signIn() },
-                        onLogout = { auth.signOut() }
+                        sessionExpired = sessionExpired,
+                        onLogin = onLogin,
+                        onLogout = onLogout
                     )
                 } else {
                     MobileInterface(
                         page = currentPage,
                         onPageChange = { currentPage = it },
                         account = displayAccount,
+                        accountInfo = accountInfo,
                         photo = profilePhoto,
                         notice = notice,
-                        xboxConnected = xboxConnected,
-                        xboxNotice = xboxNotice,
-                        onXboxLogin = { xboxAuth.signIn() },
-                        onXboxLogout = { xboxAuth.signOut() },
-                        onLogin = { auth.signIn() },
-                        onLogout = { auth.signOut() }
+                        sessionExpired = sessionExpired,
+                        onLogin = onLogin,
+                        onLogout = onLogout
                     )
                 }
             }
@@ -235,12 +211,10 @@ private fun TvInterface(
     page: String,
     onPageChange: (String) -> Unit,
     account: String?,
+    accountInfo: MicrosoftAccountInfo?,
     photo: Bitmap?,
     notice: String,
-    xboxConnected: Boolean,
-    xboxNotice: String,
-    onXboxLogin: () -> Unit,
-    onXboxLogout: () -> Unit,
+    sessionExpired: Boolean,
     onLogin: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -248,7 +222,7 @@ private fun TvInterface(
         ReferenceTvHome(
             account = account,
             onPageChange = onPageChange,
-            onLogin = onXboxLogin
+            onLogin = onLogin
         )
     } else {
         Row(
@@ -279,7 +253,7 @@ private fun TvInterface(
                     account = account,
                     photo = photo,
                     onProfile = { onPageChange("Perfil") },
-                    onLogin = onXboxLogin
+                    onLogin = onLogin
                 )
                 Spacer(modifier = Modifier.height(22.dp))
                 when (page) {
@@ -290,13 +264,12 @@ private fun TvInterface(
                     "Notificações" -> NotificationsPage()
                     "Pesquisar" -> SearchPage()
                     "Perfil" -> ProfileScreen(
-                        account = account, photo = photo, notice = notice,
-                        xboxConnected = xboxConnected, xboxNotice = xboxNotice,
-                        onXboxLogin = onXboxLogin, onXboxLogout = onXboxLogout,
+                        accountInfo = accountInfo, photo = photo, notice = notice,
+                        sessionExpired = sessionExpired,
                         onLogin = onLogin, onLogout = onLogout
                     )
                     "Configurações" -> SettingsPage()
-                    else -> HomeScreen(isTv = true, xboxConnected = xboxConnected)
+                    else -> HomeScreen(isTv = true, microsoftConnected = account != null)
                 }
             }
         }
@@ -396,12 +369,10 @@ private fun MobileInterface(
     page: String,
     onPageChange: (String) -> Unit,
     account: String?,
+    accountInfo: MicrosoftAccountInfo?,
     photo: Bitmap?,
     notice: String,
-    xboxConnected: Boolean,
-    xboxNotice: String,
-    onXboxLogin: () -> Unit,
-    onXboxLogout: () -> Unit,
+    sessionExpired: Boolean,
     onLogin: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -414,7 +385,7 @@ private fun MobileInterface(
             account = account,
             photo = photo,
             onProfile = { onPageChange("Perfil") },
-            onLogin = onXboxLogin,
+            onLogin = onLogin,
             onFriends = { onPageChange("Amigos") },
             onNotifications = { onPageChange("Notificações") }
         )
@@ -425,7 +396,7 @@ private fun MobileInterface(
                 .fillMaxWidth()
         ) {
             when (page) {
-                "Início" -> HomeScreen(isTv = false, xboxConnected = xboxConnected)
+                "Início" -> HomeScreen(isTv = false, microsoftConnected = account != null)
 
                 "Minha Biblioteca" -> CatalogPage(
                     title = "Minha Biblioteca"
@@ -442,20 +413,17 @@ private fun MobileInterface(
                 "Pesquisar" -> SearchPage()
 
                 "Perfil" -> ProfileScreen(
-                    account = account,
+                    accountInfo = accountInfo,
                     photo = photo,
                     notice = notice,
-                    xboxConnected = xboxConnected,
-                    xboxNotice = xboxNotice,
-                    onXboxLogin = onXboxLogin,
-                    onXboxLogout = onXboxLogout,
+                    sessionExpired = sessionExpired,
                     onLogin = onLogin,
                     onLogout = onLogout
                 )
 
                 "Configurações" -> SettingsPage()
 
-                else -> HomeScreen(isTv = false, xboxConnected = xboxConnected)
+                else -> HomeScreen(isTv = false, microsoftConnected = account != null)
             }
         }
 
@@ -647,7 +615,7 @@ private fun NavigationItem(
 }
 
 @Composable
-private fun HomeScreen(isTv: Boolean, xboxConnected: Boolean = false) {
+private fun HomeScreen(isTv: Boolean, microsoftConnected: Boolean = false) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 25.dp, top = 8.dp),
@@ -668,12 +636,12 @@ private fun HomeScreen(isTv: Boolean, xboxConnected: Boolean = false) {
         item { XboxCatalogScreen() }
         item {
             ActionCard(
-                title = if (xboxConnected) "Conta Xbox conectada" else "Conecte sua conta Microsoft + Xbox",
-                description = if (xboxConnected)
-                    "A conexão foi reconhecida. Biblioteca pessoal, amigos e conquistas exigem integrações específicas."
+                title = if (microsoftConnected) "Conta Microsoft conectada" else "Conecte sua conta Microsoft",
+                description = if (microsoftConnected)
+                    "Login Microsoft ativo. Biblioteca pessoal, amigos, conquistas e streaming exigem a autenticação Xbox Network, que é separada."
                 else
-                    "Conecte sua conta para habilitar os recursos Xbox compatíveis.",
-                icon = if (xboxConnected) Icons.Default.VerifiedUser else Icons.Default.SportsEsports
+                    "Entre com sua conta Microsoft para habilitar os recursos compatíveis.",
+                icon = if (microsoftConnected) Icons.Default.VerifiedUser else Icons.Default.SportsEsports
             )
         }
     }
@@ -801,17 +769,14 @@ private fun SearchPage() {
 
 @Composable
 private fun ProfileScreen(
-    account: String?,
+    accountInfo: MicrosoftAccountInfo?,
     photo: Bitmap?,
     notice: String,
-    xboxConnected: Boolean,
-    xboxNotice: String,
-    onXboxLogin: () -> Unit,
-    onXboxLogout: () -> Unit,
+    sessionExpired: Boolean,
     onLogin: () -> Unit,
     onLogout: () -> Unit
 ) {
-    val signedIn = xboxConnected || (!account.isNullOrBlank() && account != "Xbox conectado")
+    val signedIn = accountInfo != null
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(18.dp),
         contentPadding = PaddingValues(bottom = 30.dp),
@@ -832,40 +797,54 @@ private fun ProfileScreen(
                 ProfileAvatar(photo, if (signedIn) 96.dp else 82.dp)
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    text = if (signedIn) (account ?: "Conta Xbox") else "Entre para continuar",
+                    text = accountInfo?.displayName ?: "Entre para continuar",
                     color = MainText, fontSize = 20.sp, fontWeight = FontWeight.Bold
                 )
+                if (accountInfo != null) {
+                    Text(
+                        text = accountInfo.email ?: accountInfo.username,
+                        color = SecondaryText, fontSize = 13.sp
+                    )
+                }
                 Text(
-                    text = if (xboxConnected) "Conta Xbox conectada" else if (signedIn) "Conta Microsoft conectada" else "Conecte sua conta Microsoft e Xbox em um só fluxo",
+                    text = when {
+                        sessionExpired -> "Sessão Microsoft expirada"
+                        signedIn -> "Conta Microsoft conectada · Xbox Network não conectada"
+                        else -> "Conecte sua conta Microsoft"
+                    },
                     color = SecondaryText, fontSize = 12.sp
                 )
                 Spacer(Modifier.height(20.dp))
-                if (xboxConnected) {
-                    Button(onClick = onXboxLogout, modifier = Modifier.fillMaxWidth()) {
+                if (signedIn && !sessionExpired) {
+                    Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.Logout, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Desconectar conta")
+                        Text("Sair da conta Microsoft")
                     }
                 } else {
                     Button(
-                        onClick = onXboxLogin,
+                        onClick = onLogin,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentColor, contentColor = Color.Black),
                         shape = RoundedCornerShape(13.dp)
                     ) {
                         Icon(Icons.Default.SportsEsports, contentDescription = null)
                         Spacer(Modifier.width(9.dp))
-                        Text("Entrar com Microsoft + Xbox", fontWeight = FontWeight.Bold)
+                        Text(if (sessionExpired) "Entrar novamente" else "Entrar com Microsoft", fontWeight = FontWeight.Bold)
+                    }
+                    if (sessionExpired) {
+                        TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
+                            Text("Sair da conta Microsoft")
+                        }
                     }
                     Text(
-                        "Você usará a autenticação oficial da Microsoft. Não é necessário adicionar uma segunda conta.",
+                        "Você usará a autenticação oficial da Microsoft. O CloudPlay não vê nem armazena sua senha.",
                         color = SecondaryText, fontSize = 11.sp
                     )
                 }
-                val status = listOf(xboxNotice, notice).filter { it.isNotBlank() }.distinct().joinToString("\n")
-                if (status.isNotBlank()) {
+                if (notice.isNotBlank()) {
                     Spacer(Modifier.height(12.dp))
-                    Text(status, color = SecondaryText, fontSize = 12.sp)
+                    Text(notice, color = SecondaryText, fontSize = 12.sp)
                 }
             }
         }
