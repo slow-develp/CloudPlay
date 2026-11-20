@@ -18,15 +18,17 @@ Projeto inicial Kotlin + Jetpack Compose. Não é um serviço de streaming funci
 
 O editor web do GitHub permite editar arquivos no celular, mas não compila. O GitHub Actions compila remotamente. Cotas e limites podem mudar; confira a página de cobrança antes de depender do serviço.
 
-## Login Microsoft — etapa seguinte
-A base ainda não inclui autenticação ativa. Para habilitá-la:
-1. Registrar o aplicativo no Microsoft Entra.
-2. Escolher suporte a contas pessoais Microsoft conforme o cenário.
-3. Configurar plataforma Android com package `com.cloudplay.app` e assinatura/hash da chave de assinatura usada para o APK.
-4. Obter o `client_id` e o `redirect_uri` gerados para o app.
-5. Adicionar MSAL Android, arquivo de configuração e `BrowserTabActivity`/intent-filter conforme a documentação oficial.
+## Login Microsoft (MSAL)
+O login usa a biblioteca oficial MSAL Android (`com.microsoft.identity.client:msal`), em modo de conta única. Tokens ficam apenas no cache criptografado do próprio MSAL.
 
-Não peça nem armazene senha Microsoft dentro do CloudPlay. MSAL usa o fluxo oficial de autenticação. Entrar na Microsoft não significa automaticamente ter acesso às APIs privadas do Xbox, biblioteca de compras ou streaming.
+Configuração (Microsoft Entra → Registros de aplicativo):
+1. Suporte a contas: "contas em qualquer diretório organizacional e contas Microsoft pessoais".
+2. Plataforma **Android**: package `com.cloudplay.app` + Signature Hash da chave que assina o APK.
+3. Permissão delegada do Microsoft Graph: `User.Read`.
+4. Copie o `client_id` e o `redirect_uri` para `app/src/main/res/raw/auth_config_single_account.json`.
+5. Coloque o mesmo Signature Hash em `android:path="/<HASH>"` da `BrowserTabActivity` em `AndroidManifest.xml`.
+
+O login Microsoft não é autenticação Xbox Network. Xbox Live, XSTS e GSSV exigem uma etapa separada, não implementada aqui; o app não gera nem simula tokens Xbox.
 
 ## Limite de infraestrutura
 GitHub Actions compila o APK; não hospeda servidores de jogos. Uma cloud gaming real exige máquinas com GPU, encoder de vídeo, rede de baixa latência, controle remoto, gestão de sessões e direitos/licenças para executar cada jogo. Este repositório não inclui servidor GPU nem streaming.
